@@ -1,0 +1,28 @@
+________________________________________________________________________________________________________________________
+  Version ID : Pdap 3.12
+                                                            Time : 20:36:25
+                                                            Date : 07:12.2016
+________________________________________________________________________________________________________________________
+  Result file : D:/Dokumenter/Programmering/Python/workspace/WindEnergyToolbox/wetb/fatigue_tools/tests/test_files/test_bearing_damage2.dat
+________________________________________________________________________________________________________________________
+   Scans    Channels    Time [sec]      Format
+      30000      7        600.000       BINARY
+
+  Channel   Variable Description               
+
+     1      Time                           s          Time
+     2      bea1 angle                     deg        pitch1 angle
+     3      bea1 angle                     deg        pitch2 angle
+     4      bea1 angle                     deg        pitch3 angle
+     5      Mx coo: blade1                 kNm        MomentMx Mbdy:blade1 nodenr:   3 coo: blade1  blade 1 root
+     6      Mx coo: blade2                 kNm        MomentMx Mbdy:blade2 nodenr:   3 coo: blade2  blade 2 root
+     7      Mx coo: blade3                 kNm        MomentMx Mbdy:blade3 nodenr:   3 coo: blade3  blade 3 root
+________________________________________________________________________________________________________________________
+Scale factors:
+  2.18750E-02
+  4.09937E-04
+  4.04169E-04
+  4.03384E-04
+  3.92345E-01
+  3.96563E-01
+  3.76100E-01
