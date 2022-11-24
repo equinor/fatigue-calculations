@@ -3,21 +3,15 @@ import pandas as pd
 from read_simulation_file.read_simulation_file import read_bladed_file
 import os
 
-def get_moment_time_series(DLC_ID, cluster_ID, fatigue_config_file, results_folder_for_cluster):
-
-    #binary_file = r'C:\Users\IDH\OneDrive - Equinor\R&T Wind\RULe\SSE Doggerbank\Doc-0089427-HAL-X-13MW DB-A OWF-ILA3_JLO-model_fatigue_timeseries_all_elevations\1_Fatigue\F1.2_PowerProd\WD120\08\JLO12-08-120-150-00p70-04p33-0-s16.$105'
-    #text_file = r'C:\Users\IDH\OneDrive - Equinor\R&T Wind\RULe\SSE Doggerbank\Doc-0089427-HAL-X-13MW DB-A OWF-ILA3_JLO-model_fatigue_timeseries_all_elevations\1_Fatigue\F1.2_PowerProd\WD120\08\JLO12-08-120-150-00p70-04p33-0-s16.%105'
+def get_moment_time_series(DLC_ID, cluster_ID, fatigue_config_file, results_folder_for_cluster, time_series_length):
 
     df = pd.read_excel(fatigue_config_file, sheet_name=DLC_ID)
 
     df =  df.assign(filenames = df.apply(lambda x: x['simulation_name'].replace('XXX', cluster_ID), axis = 1))
     df =  df.assign(results_files = df.apply(lambda x: os.path.join(results_folder_for_cluster +  x['path'], x['filenames']) + '.$105', axis = 1))
     df =  df.assign(descr_files = df.apply(lambda x: os.path.join(results_folder_for_cluster +  x['path'], x['filenames']) + '.%105', axis = 1))
-    #print(df)
 
     probs = list(df.Tot_Prob_in_10_percent_idling_scenario_hr_year)
-   
-    time_series_length = 1201
     thetas = list(np.deg2rad(range(0,359,15)))
 
     moments_all_cases = np.zeros((df.shape[0], len(thetas), time_series_length))
