@@ -101,7 +101,7 @@ def eq_load_and_cycles(signals, no_bins=46, m=[3, 4, 6, 8, 10, 12], neq=[10 ** 6
     cycles, ampl_bin_mean = cycles.flatten(), ampl_bin_mean.flatten()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        eq_loads = [[((np.nansum(cycles * ampl_bin_mean ** _m) / _neq) ** (1. / _m)) for _m in np.atleast_1d(m)]  for _neq in np.atleast_1d(neq)]
+        eq_loads = [[((np.nansum(25* cycles * ampl_bin_mean ** _m) / _neq) ** (1. / _m)) for _m in np.atleast_1d(m)]  for _neq in np.atleast_1d(neq)]
     return eq_loads, cycles, ampl_bin_mean, ampl_bin_edges
 
 
@@ -146,7 +146,7 @@ def cycle_matrix(signals, ampl_bins=10, mean_bins=10, rainflow_func=rainflow_win
     """
 
     if isinstance(signals[0], tuple):
-        weights, ampls, means = np.array([(np.zeros_like(ampl)+weight,ampl,mean) for weight, signal in signals for ampl,mean in rainflow_func(signal[:]).T], dtype=np.float64).T
+        weights, ampls, means = np.array([(np.zeros_like(ampl)+weight,ampl,mean) for weight, signal in signals for ampl, mean in rainflow_func(signal[:]).T], dtype=np.float64).T
     else:
         ampls, means = rainflow_func(signals[:])
         weights = np.ones_like(ampls)
@@ -162,7 +162,7 @@ def cycle_matrix(signals, ampl_bins=10, mean_bins=10, rainflow_func=rainflow_win
     cycles = cycles / 2  # to get full cycles
     return cycles, ampl_bin_mean, ampl_edges, mean_bin_mean, mean_edges
 
-
+    
 def cycle_matrix2(signal, nrb_amp, nrb_mean, rainflow_func=rainflow_windap):
     """
     Same as wetb.fatigue_tools.fatigue.cycle_matrix but bin from min_amp to
