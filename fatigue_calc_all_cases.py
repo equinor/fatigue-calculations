@@ -45,7 +45,8 @@ for index, val in enumerate(sectors):
         print('DLC_ID', DLC_ID)
 
     weights_all_dlcs = np.array(weights_all_dlcs)*6
-
+    #weights_all_dlcs = np.ones(len(weights_all_dlcs))
+    
     moment_lists = list(zip(weights_all_dlcs, list_of_moments))
 
     print(np.shape(list_of_moments))
