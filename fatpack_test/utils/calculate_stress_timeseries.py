@@ -14,7 +14,7 @@ def calculate_stress_timeseries(forces, moments, geometry, actual_angles, scf_pe
     print('Calculating stress timeseries')
     
     D = geometry['od'] # meters
-    t = geometry['wt'] / 1000.0 # millimeters concerted to millimeters
+    t = geometry['wt'] / 1000.0 # millimeters concerted to meters
     A = np.pi * ( (D/2)**2 - ((D - 2*t)/2)**2) # m**2 Area in the plane of the current circular, holed geometry 
     I = np.pi / 64.0 * (D**4 - (D - 2*t)**4) # m**4
     Z = I / (D/2) if geometry['inout'] == 'o' else I / (D/2 - t) # m**3 - Defines inner or outer location
@@ -29,4 +29,4 @@ def calculate_stress_timeseries(forces, moments, geometry, actual_angles, scf_pe
     for i, _ in enumerate(actual_angles): # TODO I am sure this can be done with some kind of columnwise numpy function if scf_array
         stress[:,i,:] *= scf_per_point[i]
         
-    return stress * alpha * 1e-6  
+    return stress * alpha * 1e-6 # MPa

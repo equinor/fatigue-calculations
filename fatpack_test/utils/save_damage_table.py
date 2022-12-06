@@ -1,14 +1,14 @@
 import scipy.io
 import numpy as np
 
-def save_damage_table(damage_table, output_file_name):
+def save_damage_table(damage_table, combined_damage, weights, output_file_name):
     
     if output_file_name.split('.')[-1] == 'npy':    
         with open(output_file_name, 'wb') as f:
             np.save(f, damage_table)
             
     elif output_file_name.split('.')[-1] == 'mat':
-        scipy.io.savemat(output_file_name, {'beam_fatigue_fatpack': damage_table})
+        scipy.io.savemat(output_file_name, {'damage_fatpack': damage_table, 'combined_damage_fatpack': combined_damage, 'weights_fatpack': weights})
         
     else:
         print('No recognizable filetype - no damage table stored')
@@ -22,7 +22,8 @@ def load_damage_table(file_name):
             return np.load(f)
         
     elif file_name.split('.')[-1] == 'mat':
-        return scipy.io.loadmat(file_name)['beam_fatigue']
+        ret = scipy.io.loadmat(file_name) 
+        return [ret['damage_fatpack'],  ret['combined_damage_fatpack'],ret['weights_fatpack']]
         
     else:
         print('No recognizable filetype - no damage table loaded')

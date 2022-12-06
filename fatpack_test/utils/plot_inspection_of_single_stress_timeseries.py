@@ -1,4 +1,3 @@
-
 import numpy as np
 import matplotlib.pyplot as plt 
 import fatpack 
@@ -17,14 +16,17 @@ def plot_inspection_of_single_stress_timeseries(y, N, S, cycles, reversals_ix, c
     ax_signal = plt.subplot2grid((3, 2), (0, 0))
     ax_signal.plot(y)
     ax_signal.plot(reversals_ix, y[reversals_ix], 'ro', fillstyle='none', label='reversal')
+    # TODO these limits might be changed
+    plt.xlim([0,100])
+    plt.ylim([-12, -6])
     ax_signal.legend()
-    ax_signal.set(title="Timeseries with found reversals", ylabel="Stress [Mpa]", xlabel="Timestep no.")
+    ax_signal.set(title="Timeseries including fatpack reversal points", ylabel="Stress [Mpa]", xlabel="Timestep no.")
 
     # Plotting the cumulative distribution of the cycle count
     ax_cumdist = plt.subplot2grid((3, 2), (1, 0)) 
     Ncum = N.sum() - np.cumsum(N)  # Sum of all bins keeping track of how many cycles we have left in the distribution - naturally low for a single timeseries of 10 min since we are no way near the lifetime of cycles 
     ax_cumdist.semilogx(Ncum, S)
-    ax_cumdist.set(title=f"Cumulative distribution for rainflow stress_ranges in {n_rainflow_bins} bins", xlabel="Count, N", ylabel="Range, S")
+    ax_cumdist.set(title=f"Cumulative stress range distribution for fatpack 4 pt.-method, {n_rainflow_bins} bins", xlabel="Count, N", ylabel="Range, S")
 
     # Plotting the rainflow matrix of the total cycle count
     ax_rfcmat = plt.subplot2grid((3, 2), (0, 1), rowspan=2, aspect='equal')
