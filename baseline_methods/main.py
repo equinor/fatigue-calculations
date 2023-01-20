@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 from multiprocessing import Pool
 import os
+import argparse
 
 '''
 Implementation of in-place damage of the Dogger Bank wind turbines
@@ -22,14 +23,15 @@ Implementation of in-place damage of the Dogger Bank wind turbines
 - This damage can be stored as a binary file and used for lifetime calculations etc. 
 
 Code improvement TODO
-- Replace all path variables with "os.getcwd()" to be compatible with anyone 
-- Document all methods with input/output
-    - Go over all methods and clean them / improve variable names
-    - Make type hints in the function definitions
-    - Use autoDocstring to create standardized docstring formatting
+- Create a wrapper for argparse to clean the command line input
 '''
 
 if __name__ == '__main__':
+        
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-d", "--DEM", type=str, help="DEM or damage")
+    args = parser.parse_args()
+    
     # Get relevant data_paths for DLC and simulation result files  
     data_path              = fr'{os.getcwd()}\data'
     DLC_file               = data_path +  r'\Doc-0081164-HAL-X-13MW-DGB-A-OWF-Detailed DLC List-Fatigue Support Structure Load Assessment_Rev7.0.xlsx'
@@ -39,8 +41,12 @@ if __name__ == '__main__':
     ###
     ### -!-!-!-!- NOTE CONFIG VARIABLES
     ###
-    MULTIPROCESS = False # False if using only single processor, which should be done if debugging, plotting etc.
-    DEM          = False # True = DEM, False = damage
+    if args.DEM is not None: # we have some input from the command line
+        DEM = (args.DEM.lower() == 'dem')
+    else: # we choose manually
+        DEM = True # True = DEM, False = damage
+        
+    MULTIPROCESS = True # False if using only single processor, which should be done if debugging, plotting etc.
     DLC_IDs      = ['DLC12', 'DLC24a',  'DLC31', 'DLC41a', 'DLC41b', 'DLC64a', 'DLC64b']
     geometry     = pd.read_excel(geometry_file)#.drop([0,1], axis=0) # TODO .drop() can be used for testing only a set of geometries
     point_angles = [float(i) for i in range(0,359,15)]

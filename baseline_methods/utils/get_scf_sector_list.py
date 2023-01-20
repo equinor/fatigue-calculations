@@ -10,7 +10,9 @@ def get_scf_sector_list(geometry, point_angles):
         point_angles (list): of angles in degrees, evenly distributed across the geometry 
 
     Returns:
-        list, list: updated list of angles in degrees, a list of the scf factors in each of these updated angles
+        list, list: updated list of angles in degrees, in the turbine reference frame (S = 0 deg, E = 90 deg), a list of the scf factors in each of these updated angles
+        
+    TODO the scf factors from geometry files are given in compass angles / frame. Need to account for this
     """
     
     # print('Recalculating angles and SCF')
