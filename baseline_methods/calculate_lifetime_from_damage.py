@@ -2,10 +2,15 @@ from utils.IO_handler import load_table
 import numpy as np
 import pandas as pd 
 import sys
+import os
+
+'''
+Script for calculating lifetime of a turbine's most dimensioning sector damage
+'''
 
 DLC_IDs   = ['DLC12', 'DLC64a', 'DLC64b', 'DLC24a', 'DLC31', 'DLC41a', 'DLC41b']
 DFF       = 3.0
-data_path = r'C:\Appl\TDI\getting_started\fatpack_test\data'
+data_path = fr'{os.getcwd()}\data'
 DLC_file  = data_path +  r'\Doc-0081164-HAL-X-13MW-DGB-A-OWF-Detailed DLC List-Fatigue Support Structure Load Assessment_Rev7.0.xlsx'
    
 def get_env_from_casefile(casefile, DLC_ID):    
@@ -24,33 +29,31 @@ def create_fatigue_table(damage, casefile, dlc_id):
     df_out = pd.concat([df_env, dlc_ids, df_damage], axis=1)     
     return df_out
 
-def calculate_lifetimes(method='python'):
+def calculate_lifetimes(identifier = 'damage', method = 'python'):
     
-    print(f'Calculating lifetimes from calculations done by the {method} method')
-    paths = {'python': r'C:\Appl\TDI\getting_started\fatpack_test\output\damage_DB_JLO_{}.mat', 'matlab': r'C:\Appl\TDI\getting_started\fatpack_test\output\fatigue_DB_JLO_{}.mat'}
-
+    print(f'Calculating lifetimes from {identifier} calculations done by the {method} method')
     total_damage = []
+    paths = {'python': (fr'{os.getcwd()}' + r'\output\damage_DB_JLO_{}.mat') if identifier == 'damage' else (fr'{os.getcwd()}' + r'\output\DEM_DB_JLO_{}.mat'), 
+             'matlab': (fr'{os.getcwd()}' + r'\output\fatigue_DB_JLO_{}.mat')}
+    
     for DLC_ID in DLC_IDs:
-        # path = rf'C:\Appl\TDI\getting_started\fatpack_test\output\damage_DB_JLO_{DLC_ID}.mat'
         path = paths[method].format(DLC_ID)
-        damage, combined_damage, weights = load_table(path, identifier = 'damage', method = method)
+        damage, combined_damage, weights = load_table(path, identifier = identifier, method = method)
         
         if method == 'matlab':
-            # Matlab method already has DFF = 3 multiplied into it. I have removed it for now
+            # Matlab method already has DFF = 3 multiplied into it. 
             # damage /= DFF
             # combined_damage /= DFF
-            pass
+            pass # NOTE I have removed it in the MATLAB script for now, but keeping this in case MATLAB script gets reverted
             
         if len(total_damage) == 0:
             n_geo, n_angles = combined_damage.shape
             total_damage = np.zeros((n_geo, n_angles))
         
         for geo_idx in range(n_geo):
-            total_damage[[geo_idx], :] += combined_damage[geo_idx, :] # TODO the DFF was multiplied here?
+            total_damage[[geo_idx], :] += combined_damage[geo_idx, :] # the DFF was multiplied here
            
-    lifetimes = (1 / (total_damage * DFF)) # multiply in DFF here instead?
-    print(lifetimes)
-    print(lifetimes.min())
+    lifetimes = (1 / (total_damage * DFF)) # moved DFF here
     return lifetimes
     
 def create_overall_lookuptable():
@@ -60,7 +63,7 @@ def create_overall_lookuptable():
     df_all_dlcs = []
     
     for DLC_ID in DLC_IDs:
-        path = rf'C:\Appl\TDI\getting_started\fatpack_test\output\damage_DB_JLO_{DLC_ID}.mat'
+        path = rf'{os.get_cwd()}\output\damage_DB_JLO_{DLC_ID}.mat'
         damage, combined_damage, weights = load_table(path)
         
         fatigue_data_all_dlcs[DLC_ID] = {}
@@ -79,7 +82,12 @@ def create_overall_lookuptable():
 
 if __name__ == '__main__':
     
-    lifetimes = calculate_lifetimes(method='python')
+    lifetimes = calculate_lifetimes(method='python', identifier='damage')
+    print(lifetimes)
+    print(f'Minimum lifetime: {lifetimes.min():.2f} years')
+    
     lifetimes = calculate_lifetimes(method='matlab')
+    print(lifetimes)
+    print(f'Minimum lifetime: {lifetimes.min():.2f} years')
     
     # create_overall_lookuptable()
