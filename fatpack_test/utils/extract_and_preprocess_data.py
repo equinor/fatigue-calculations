@@ -3,10 +3,17 @@ from utils.read_simulation_file import read_bladed_file
 import os
 
 def extract_and_preprocess_data(DLC_file, DLC_ID, cluster_ID, sim_res_cluster_folder):
-    '''
-    Creates a dataframe of the DLC case, generates paths for all the simulation files, and finds the shape of the data to be iterated through
-    '''
-    # TODO instert into "read_and_extract_DLC_dataframe()"
+    """Creates a dataframe of the DLC case, generates paths for all the simulation files, and finds the shape of the data to be iterated through
+
+    Args:
+        DLC_file (str): file path to the Excel file defining the DLC cases
+        DLC_ID (str): DLC ID e.g. 'DLC12', identifying the sheet of the DLC_file to extract data from
+        cluster_ID (str): which wind park cluster is the turbine a part of -> e.g. JLO for intermediate depth on Dogger Bank
+        sim_res_cluster_folder (str): path to where the simulation result time series are located depending on the current DLC
+
+    Returns:
+        pd.DataFrame, list, int, int: DataFrame with DLC information, list of the DLC cases probabilities of occuring per in hr/year, the number of cases in this DLC, the number of timesteps in the result time series 
+    """
     df = pd.read_excel(DLC_file, sheet_name=DLC_ID)
     probs = list(df.Tot_Prob_in_10_percent_idling_scenario_hr_year) # Extract directly from excel
     n_cases = df.shape[0]
