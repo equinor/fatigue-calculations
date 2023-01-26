@@ -5,7 +5,9 @@ from utils.setup_custom_logger import setup_custom_logger
 from utils.SN_Curve import SN_Curve_qats
 from utils.create_geo_matrix import create_geo_matrix
 from utils.SN_Curve import SN_Curve_qats
+from utils.transformations import global_2_compass
 import os
+import sys # for testing / debugging
 
 '''
 Script for calculating the Damage Equivalent Load (DEL).
@@ -30,23 +32,6 @@ The calculation is done by extracting stored tables of "internal DEM sums" from 
             - T_lifetime: no. of years the equivalent moment is calculated over
             - N_eq; the number of counts / year the equivalent load is calculated over 
 '''
-
-def global_2_compass(angles):
-    """Transform a list of angles in the "global" reference frame used for each turbine into the compass angles
-
-    Args:
-        angles (list): floating point angles, in degrees, where 0 deg = South and 90 deg = East (positive dir = counter clockwise)
-
-    Returns:
-        list: floating point angles, in degress, in the compass reference frame where 0 deg = North and 90 deg = East (positive dir = clockwise)
-    """
-    if isinstance(angles, list):
-        return list(np.mod(180.0 - np.array(angles), 360))
-    elif isinstance(angles, np.array):
-        assert len(angles.shape) == 1, 'Numpy array of angles is only meant to be one dimensional'
-        return np.mod(180.0 - angles, 360)
-    else:
-        raise ValueError(f'The angle transformation only accepts a one dimensional list or numpy array, but was given type {type(angles)}')
    
 if __name__ == '__main__':
     
@@ -54,7 +39,6 @@ if __name__ == '__main__':
     ### Initialize variables and collect data files
     ###
     DLC_IDs = ['DLC12', 'DLC24a',  'DLC31', 'DLC41a', 'DLC41b', 'DLC64a', 'DLC64b']
-    #DLC_IDs = ['DLC12']
     
     logger = setup_custom_logger('Main') # logger.info('Message') and logger.error('Message')
     logger.info(f'Calculating total DEM from {len(DLC_IDs)} DLCs')
@@ -82,11 +66,14 @@ if __name__ == '__main__':
     paths = {'python': (fr'{os.getcwd()}' + r'\output\DEM_DB_JLO_{}.mat'), 
              'matlab': (fr'{os.getcwd()}' + r'\output\fatigue_DB_JLO_{}.mat')}
     
+    out_path_xlsx = fr'{os.getcwd()}' + r'\output\python_combined_DEM.xlsx'
+    
     # Store the worst DEM results in a dict for tabular presentation later on
     res_data = {m: [] for m in methods}
     df_row_labels = []
     for method_idx, method in enumerate(methods):  
         tot_weighted_DEM_all_angles = []
+        
         for DLC_ID in DLC_IDs:
             '''
             Extract all precalculated internal DEM sums from each DLC, and cumulatively concatenate them together 
@@ -109,6 +96,15 @@ if __name__ == '__main__':
             # tot_weighted_DEM_all_angles *= N_equivalent
             pass # NOTE I removed it in the MATLAB DEM computation instead, but keep this part of the code in case the MATLAB code it reverted
         
+        if method == 'python':
+            df_out = pd.DataFrame(tot_weighted_DEM_all_angles, 
+                                  index = [f'{geo_matrix[key]["elevation"]:1f}' for key in geo_matrix.keys()], 
+                                  columns = [f'{a:.1f}' for a in point_angles[:]])
+            df_out.to_excel(out_path_xlsx, index_label = 'mLat')
+            df_out.to_json(fr'{os.getcwd()}' + r'\output\python_combined_DEM.json', orient = 'index')
+            print(df_out)
+            sys.exit()
+        
         if print_during_calcs:
             logger.info(f'Resulting max DEM of each geo/elevation from {method} method \n')
             
@@ -129,7 +125,7 @@ if __name__ == '__main__':
             DEM_geo_i_all_angles = tot_weighted_DEM_all_angles[geo_idx]
             DEM_max = (T_lifetime / N_equivalent * DEM_geo_i_all_angles.max() )**(1 / wohler_exp)
             
-            res_data[method].append(DEM_max / 10**6)            
+            res_data[method].append(DEM_max / 10**6)
             el = geo_matrix[geo_idx]['elevation']
             
             if method_idx == 0:
