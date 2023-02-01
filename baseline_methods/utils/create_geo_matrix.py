@@ -47,5 +47,6 @@ def create_geo_matrix(geometry, point_angles, curve):
         out_df[geo_idx]['alpha'] = max(1.0, (out_df[geo_idx]['wt'] / curve.t_ref )**curve.k ) # Stress scaling factor
         out_df[geo_idx]['actual_angles'] = actual_point_angles
         out_df[geo_idx]['scf_per_point'] = scf_per_point
+        out_df[geo_idx]['member_JLO'] = geo_row['member_JLO']
         
     return out_df
