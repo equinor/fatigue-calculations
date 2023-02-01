@@ -11,6 +11,7 @@ import pandas as pd
 from multiprocessing import Pool
 import os
 import argparse
+import sys
 
 '''
 Implementation of in-place damage of the Dogger Bank wind turbines
@@ -49,7 +50,8 @@ if __name__ == '__main__':
     MULTIPROCESS = True # False if using only single processor, which should be done if debugging, plotting etc.
     DLC_IDs      = ['DLC12', 'DLC24a',  'DLC31', 'DLC41a', 'DLC41b', 'DLC64a', 'DLC64b']
     geometry     = pd.read_excel(geometry_file)#.drop([0,1], axis=0) # TODO .drop() can be used for testing only a set of geometries
-    point_angles = [float(i) for i in range(0,359,15)]
+    point_angles = [float(i) for i in range(0,359,15)] # evenly distributed angles in the turbine frame. All iterations are done with these, but each geometry might have sectors / angles that deviate some
+    store_ranges = True
     ###
     ### -!-!-!-!- NOTE CONFIG VARIABLES
     ###
@@ -59,7 +61,7 @@ if __name__ == '__main__':
     cluster_ID         = 'JLO'
     out_file_type      = 'mat' # or npy 
     logger             = setup_custom_logger('Main') # logger.info('Message') and logger.error('Message')
-    rainflow_func  = get_range_and_count_qats
+    rainflow_func      = get_range_and_count_qats
     curve              = SN_Curve_qats('D')
     geo_matrix         = create_geo_matrix(geometry, point_angles, curve) # better matrix to pass to the main function
            
@@ -76,15 +78,18 @@ if __name__ == '__main__':
         df, probs, n_cases, _ = extract_and_preprocess_data(DLC_file, DLC_ID, cluster_ID, sim_res_cluster_folder)
         output_file_name      = fr'{os.getcwd()}\output' + fr'\{info_str}_DB_{cluster_ID}_{DLC_ID}.{out_file_type}'
         summary_table_DLC_i   = np.zeros((n_cases, n_geometries, len(point_angles))) # pre-allocate output matrix of the current DLC
+        range_storage_path    = fr'{os.getcwd()}\output\markov' + fr'\DB_{cluster_ID}_{DLC_ID}'
         
         # Prepare the calculation function arguments which can be passed to any function, either multiprocessed or not
-        arguments             = [(df.results_files[i], 
-                                df.descr_files[i], 
-                                point_angles, 
-                                geo_matrix, 
-                                curve,
-                                rainflow_func
-                                ) for i in range(n_cases)]
+        arguments = [(df.results_files[i], 
+                      df.descr_files[i], 
+                      point_angles, 
+                      geo_matrix, 
+                      curve,
+                      rainflow_func,
+                      store_ranges,
+                      range_storage_path + f'_case{i}.json' 
+                     ) for i in range(n_cases)]
         
         logger.info(f'Starting {info_str} calculation on {DLC_ID} with {n_cases} cases')
         
@@ -93,7 +98,7 @@ if __name__ == '__main__':
                 # loop all cases multiprocessed across available CPUs
                 outputs = p.starmap(calc_func, arguments) # returns a list of damages/DEM of len = n_cases 
             
-            summary_table_DLC_i = np.array(outputs) 
+            summary_table_DLC_i = np.array(outputs)
         else:
             for case_i in range(n_cases):
                 summary_table_DLC_i[[case_i], :, :] = calc_func(*arguments[case_i])
