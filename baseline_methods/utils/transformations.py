@@ -14,6 +14,8 @@ def global_2_compass(angles):
     elif isinstance(angles, np.array):
         assert len(angles.shape) == 1, 'Numpy array of angles is only meant to be one dimensional'
         return np.mod(180.0 - angles, 360)
+    elif isinstance(angles, float) or isinstance(angles, np.float64) or isinstance(angles, np.float32):
+        return np.mod(180.0 - angles, 360)
     else:
         raise ValueError(f'The angle transformation only accepts a one dimensional list or numpy array, but was given type {type(angles)}')
     
