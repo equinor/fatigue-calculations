@@ -2,7 +2,7 @@ import numpy as np
 from utils.read_simulation_file import read_bladed_file
 import sys
 
-def calculate_damage_case_i(binary_file_i, description_file_i, point_angles, geo_matrix, curve, rainflow_func):
+def calculate_damage_case_i(binary_file_i, description_file_i, point_angles, geo_matrix, curve, rainflow_func, store_ranges, range_storage_path):
     """
     Calculates in-place damage of a turbine geometry for a single DLC case
     - Reads simulation files from vendor and extracts moments, forces time series
@@ -17,6 +17,8 @@ def calculate_damage_case_i(binary_file_i, description_file_i, point_angles, geo
         geo_matrix (dict): dictionary containing the various geometry details at different elevations
         curve (SN_curve): SN_curve for the given material, used here to calculate the miner sum of the found stress ranges
         rainflow_func (func): a python function for returning (ranges, counts) from a timeseries using rainflow counting
+        store_ranges (bool): a decider on weather or not ranges shall be stored. Used in RFC of moment ranges in DEM
+        range_storage_path (str): path to where ranges can be stored if used later. Used in RFC of moment ranges in DEM
 
     Returns:
         np.array: 2D array containing damage for each geometry (rows), for each sector/angle (columns) for the current DLC case
@@ -32,14 +34,13 @@ def calculate_damage_case_i(binary_file_i, description_file_i, point_angles, geo
         moments_y_timeseries = content_reshaped[[pos[1]], :] # Moments as (1, timesteps) array
         forces_z_case_i      = content_reshaped[[pos[2]], :] # Axial F as (1, timesteps) array 
         
-        # Resultant moment for the current case -> (theta, timestep)-shaped array    
+        # Resultant moment for the current case will be a (theta, timestep)-shaped array    
         actual_angles_rad = np.deg2rad(geo_dict['actual_angles'])
         
-        # NOTE Here is where the sign of the cos function might be subject to error. Formerly there was a plus sign, but after reading through the design basis again, I think it should be a minus
         res_moments_timeseries_case_i = np.sin([actual_angles_rad]).T.dot(moments_x_timeseries) - np.cos([actual_angles_rad]).T.dot(moments_y_timeseries)
         res_force_timeseries_case_i = np.repeat(forces_z_case_i, len(actual_angles_rad), axis = 0)
                 
-        # size (theta, timestep)
+        # size (n_thetas, n_timesteps)
         stress_timeseries_case_i = res_force_timeseries_case_i / geo_dict['A'] + res_moments_timeseries_case_i / geo_dict['Z'] # [Pa] Quick check: N / m**2 + Nm / m**3 = N / m**2 = Pa
         
         # Adjust the stress according the stress concentration factors for certain angles
@@ -51,6 +52,6 @@ def calculate_damage_case_i(binary_file_i, description_file_i, point_angles, geo
             
             # stress_ranges comes as (N_stress_ranges, n_counts) sized matrix
             stress_ranges = rainflow_func(stress_timeseries_case_i_ang_j, k = 128)   
-            damage[geo_idx, ang_idx] = curve.miner_sum(stress_ranges) # TODO stress_ranges = stress_ranges[stress_ranges[:,0] > 1e-6] ?
+            damage[geo_idx, ang_idx] = curve.miner_sum(stress_ranges)
             
     return damage # (n_geo, n_angles) shaped array
