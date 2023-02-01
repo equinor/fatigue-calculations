@@ -64,7 +64,7 @@ if __name__ == '__main__':
     # Compare python and matlab implementations. Python and matlab uses two different conventions on file storage naming 
     methods = ['matlab', 'python'] 
     paths = {'python': (fr'{os.getcwd()}' + r'\output\DEM_DB_JLO_{}.mat'), 
-             'matlab': (fr'{os.getcwd()}' + r'\output\fatigue_DB_JLO_{}.mat')}
+             'matlab': (fr'{os.getcwd()}' + r'\output\fatigue_DB_JLO_{}.mat')} # formatted so that the str DLC_ID can be used in path
     
     out_path_xlsx = fr'{os.getcwd()}' + r'\output\python_combined_DEM.xlsx'
     
