@@ -20,6 +20,7 @@ def store_table(table, combined_table, weights, output_file_name, identifier = '
     """
     
     if output_file_name.split('.')[-1] == 'npy':    
+        # TODO alternative check is output_file_name.endswith('.npy')
         with open(output_file_name, 'wb') as f:
             np.save(f, table)
     
