@@ -40,7 +40,7 @@ if __name__ == '__main__':
     geometry_file          = data_path +  r'\DA_P53_CD.xlsx'
     
     ###
-    ### -!-!-!-!- NOTE CONFIG VARIABLES
+    ### -!-!-!-!- NOTE CONFIG VARIABLES START
     ###
     if args.DEM is not None: # we have some input from the command line
         DEM = (args.DEM.lower() == 'dem')
@@ -53,7 +53,7 @@ if __name__ == '__main__':
     point_angles = [float(i) for i in range(0,359,15)] # evenly distributed angles in the turbine frame. All iterations are done with these, but each geometry might have sectors / angles that deviate some
     store_ranges = True
     ###
-    ### -!-!-!-!- NOTE CONFIG VARIABLES
+    ### -!-!-!-!- NOTE CONFIG VARIABLES END
     ###
     
     # TODO transform between "global turbine frame" and the compass frame, as the SCF angles are given in the latter
@@ -67,7 +67,7 @@ if __name__ == '__main__':
            
     info_str  = "DEM" if DEM else "damage"
     calc_func = calculate_DEM_case_i if DEM else calculate_damage_case_i
-    factor    = 6.0
+    factor    = 6.0 # to go from damage or DEM "per 10 min" to "per hr" 
 
     logger.info(f'Initiating {info_str} calculation for the {cluster_ID} cluster, DLCs {DLC_IDs}')
     elevations = [str(geo_matrix[i]['elevation']) + ' mLAT' for i in range(len(geo_matrix))]
@@ -78,7 +78,7 @@ if __name__ == '__main__':
         df, probs, n_cases, _ = extract_and_preprocess_data(DLC_file, DLC_ID, cluster_ID, sim_res_cluster_folder)
         output_file_name      = fr'{os.getcwd()}\output' + fr'\{info_str}_DB_{cluster_ID}_{DLC_ID}.{out_file_type}'
         summary_table_DLC_i   = np.zeros((n_cases, n_geometries, len(point_angles))) # pre-allocate output matrix of the current DLC
-        range_storage_path    = fr'{os.getcwd()}\output\markov' + fr'\DB_{cluster_ID}_{DLC_ID}'
+        range_storage_path    = fr'{os.getcwd()}\output\markov' + fr'\DB_{cluster_ID}_{DLC_ID}' + '_member{}'
         
         # Prepare the calculation function arguments which can be passed to any function, either multiprocessed or not
         arguments = [(df.results_files[i], 
@@ -88,27 +88,25 @@ if __name__ == '__main__':
                       curve,
                       rainflow_func,
                       store_ranges,
-                      range_storage_path + f'_case{i}.json' 
+                      range_storage_path + f'_case{i}.npy'
                      ) for i in range(n_cases)]
         
         logger.info(f'Starting {info_str} calculation on {DLC_ID} with {n_cases} cases')
         
         if MULTIPROCESS:
-            with Pool() as p: 
-                # loop all cases multiprocessed across available CPUs
+            with Pool() as p: # loop all cases multiprocessed across available CPUs 
                 outputs = p.starmap(calc_func, arguments) # returns a list of damages/DEM of len = n_cases 
-            
             summary_table_DLC_i = np.array(outputs)
+            
         else:
             for case_i in range(n_cases):
                 summary_table_DLC_i[[case_i], :, :] = calc_func(*arguments[case_i])
+                sys.exit()
         
-        logger.info(f'Finished calculating {info_str}')
+        logger.info(f'Finished calculating {info_str} - initiating aggregating calculation and file storage')
         
         # Transform the summary table into a combined damage / DEM matrix of size (n_geometries, n_angles), 
         # weighting each of the cases by their probabilities, and converting to hour-based damage according to "factor"
-        logger.info(f'Initiating aggregating calculation and file storage')
-        
         weighted_table_DLC_i = np.zeros((n_geometries, len(point_angles)))
         weights = np.array([probs])
         for ang_idx in range(len(point_angles)):

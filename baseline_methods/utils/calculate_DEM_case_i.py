@@ -2,6 +2,7 @@ import numpy as np
 from utils.read_simulation_file import read_bladed_file
 import sys
 import json
+from utils.fastnumpyio import save as fastio_save
 
 def calculate_DEM_case_i(binary_file_i, description_file_i, point_angles, geo_matrix, curve, rainflow_func, store_ranges, range_storage_path):
     """
@@ -25,13 +26,12 @@ def calculate_DEM_case_i(binary_file_i, description_file_i, point_angles, geo_ma
         
     TODO use the percentage and wohler exponent as inputs to function?
     """
-    DEM_scale = 1.01 # 1% increase og DEM due to time of tower without NRA during installation before operation, and after operation but before de-commissioning
+    DEM_scale = 1.01 # 1% increase of DEM due to time of tower without NRA during installation before operation, and after operation but before de-commissioning
     m = 5.0 # wohler exponent
+    n_rainflow_bins = 128
     
     content_reshaped = read_bladed_file(binary_file_i, description_file_i) # (n,m) numpy array with n = no. of quantities of data,  m = no. of timesteps for each data quantity 
-    DEM_sum = np.zeros( (len(geo_matrix), len(point_angles)) )
-    
-    all_ranges = dict()
+    DEM_sum = np.zeros((len(geo_matrix), len(point_angles)))
     
     for geo_idx, geo_dict in geo_matrix.items():
         pos = (geo_dict['mx_col'] - 1, geo_dict['my_col'] - 1, geo_dict['fz_col'] - 1) # columns in DLC file to collect moments and forces, using -1 to fit Python indexing
@@ -39,29 +39,36 @@ def calculate_DEM_case_i(binary_file_i, description_file_i, point_angles, geo_ma
         moments_x_timeseries = content_reshaped[[pos[0]], :] # Moments as (1, timesteps) array - hence the [[],:] type slice
         moments_y_timeseries = content_reshaped[[pos[1]], :] # Moments as (1, timesteps) array
 
-        # Find angles according to possible SCF specifications
-        actual_angles_rad = np.deg2rad(geo_dict['actual_angles'])
+        # Find angles according to possible SCF specifications. If 'omni', angles will be as originally and SCF = 1 for all angles
+        actual_angles_rad = np.deg2rad(geo_dict['actual_angles']) # TODO this works for nodes / members, but not any non-omni angle since the actual angles are given in compass angles
         
         # Resulting moment time series in shape (n_angles, n_timesteps)
         res_moments_timeseries_case_i = np.sin([actual_angles_rad]).T.dot(moments_x_timeseries) - np.cos([actual_angles_rad]).T.dot(moments_y_timeseries)
         
-        ranges_per_ang_geo_i = dict()
-        for ang_idx, timeseries_case_i_ang_j in enumerate(res_moments_timeseries_case_i):
-            
-            # ranges comes as (n_ranges, 2) sized matrix with col 0 = ranges and col 1 = counts. Note that "n_ranges" == k if k is given
-            ranges = rainflow_func(timeseries_case_i_ang_j, k = 128)
-            
-            # Calculate DEM_sum[[geo_idx], [ang_idx]] = np.sum( [(moment_range * scale)**wohler * count for moment_range, count in ranges] ) - just using dot product for efficiency
-            DEM_sum[[geo_idx], [ang_idx]] = ((ranges[:,[0]].T * DEM_scale)**m).dot(ranges[:,[1]]) # dem_sum per 10 min -> calculating SUM_i^k (n_i * dM_i^m) by manipulating the range matrix and using dot product for summation 
-                
-            if store_ranges: # NOTE only store ranges with larger than 0 counts to save space! 
-                ranges_per_ang_geo_i[ang_idx] = ranges[ranges[:, 1] > 0.0].tolist() # does not need .copy() - no ops are being done, and we are not reusing these ranges. Needs tolist() to not be np.array which cannot be serialized by json
+        ranges_and_counts_all_sectors = np.zeros((len(point_angles), n_rainflow_bins, 2)) # an array with rows representing each sector, and each cell representing one list of a [moment_range_i, count_i] pair: 
         
+        for sector_idx, moment_timeseries_case_i_sector_j in enumerate(res_moments_timeseries_case_i):
+            # ranges comes as (n_ranges, 2) sized matrix with col 0 = moment_ranges [Nm] and col 1 = counts [- / 10 min]. Note that "n_ranges" == k if k is given
+            ranges_and_counts_sector_j = rainflow_func(moment_timeseries_case_i_sector_j, k = n_rainflow_bins)
+            
+            # Scale the moment ranges 1% according to reports to account for the period prior to RNA attachment during commissioning and after RNA detachment during decommissioning
+            ranges_and_counts_sector_j[:, [0]] *= DEM_scale
+            
+            # Calculate the sum of ranges and counts ("internal DEM sum") of the point at (geo_idx, sector_idx) by
+            # for moment_range, count in ranges_and_counts_sector_j:
+            #   res += count * (moment_range)**wohler
+            # For efficiency we use dot product instead of summing 128 elements each loop 
+            
+            m_ranges_sector_j = ranges_and_counts_sector_j[:, [0]]
+            counts_sector_j = ranges_and_counts_sector_j[:, [1]]
+            
+            DEM_sum[[geo_idx], [sector_idx]] = ((m_ranges_sector_j.T)**m).dot(counts_sector_j)
+                
+            if store_ranges:
+                # NOTE it makes sense to not store zero count-ranges, but this made it hard to create a standard sized numpy array. This can be fixed by another script later
+                ranges_and_counts_all_sectors[sector_idx, :, :] = ranges_and_counts_sector_j
+                
         if store_ranges:
-            all_ranges[geo_dict['elevation']] = ranges_per_ang_geo_i
-    
-    if store_ranges:    
-        with open(range_storage_path, 'w') as out_file:
-            json.dump(all_ranges, out_file, sort_keys = True, indent = 4, ensure_ascii = False) # TODO maybe some of these items makes the files larger than they need to be
+            fastio_save(range_storage_path.format(geo_dict['member_JLO']), ranges_and_counts_all_sectors)
     
     return DEM_sum # (n_geo, n_angles) shaped array
