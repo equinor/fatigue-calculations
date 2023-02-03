@@ -6,6 +6,8 @@ def get_scf_sector_list(geometry, point_angles):
     Return the updated list of angles and belonging scf.
     
     NOTE the SCF_sectors in the geometry is given in compass angles, therefore this function only makes sense if point_angles are given in the compass frame as well
+    
+    # TODO it might never be relevant with the actual angles. The reports just linearly interpolate the elevations and use the nearest sector on the nearest elevation
 
     Args:
         geometry (dict): a dictionary of geometrical variables of the current elevation

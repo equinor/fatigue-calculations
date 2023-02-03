@@ -34,8 +34,8 @@ def calculate_DEM_case_i(binary_file_i, description_file_i, point_angles, geo_ma
     DEM_sum = np.zeros((len(geo_matrix), len(point_angles)))
     
     for geo_idx, geo_dict in geo_matrix.items():
-        pos = (geo_dict['mx_col'] - 1, geo_dict['my_col'] - 1, geo_dict['fz_col'] - 1) # columns in DLC file to collect moments and forces, using -1 to fit Python indexing
         
+        pos = (geo_dict['mx_col'] - 1, geo_dict['my_col'] - 1, geo_dict['fz_col'] - 1) # columns in DLC file to collect moments and forces, using -1 to fit Python indexing
         moments_x_timeseries = content_reshaped[[pos[0]], :] # Moments as (1, timesteps) array - hence the [[],:] type slice
         moments_y_timeseries = content_reshaped[[pos[1]], :] # Moments as (1, timesteps) array
 
@@ -45,30 +45,30 @@ def calculate_DEM_case_i(binary_file_i, description_file_i, point_angles, geo_ma
         # Resulting moment time series in shape (n_angles, n_timesteps)
         res_moments_timeseries_case_i = np.sin([actual_angles_rad]).T.dot(moments_x_timeseries) - np.cos([actual_angles_rad]).T.dot(moments_y_timeseries)
         
-        ranges_and_counts_all_sectors = np.zeros((len(point_angles), n_rainflow_bins, 2)) # an array with rows representing each sector, and each cell representing one list of a [moment_range_i, count_i] pair: 
+        cycles_all_sectors = np.zeros((len(point_angles), n_rainflow_bins, 2)) # an array with rows representing each sector, and each cell representing one list of a [moment_range_i, count_i] pair: 
         
         for sector_idx, moment_timeseries_case_i_sector_j in enumerate(res_moments_timeseries_case_i):
-            # ranges comes as (n_ranges, 2) sized matrix with col 0 = moment_ranges [Nm] and col 1 = counts [- / 10 min]. Note that "n_ranges" == k if k is given
-            ranges_and_counts_sector_j = rainflow_func(moment_timeseries_case_i_sector_j, k = n_rainflow_bins)
+            # cycles comes as (n_cycles, 2) sized matrix with col 0 = moment_ranges [Nm] and col 1 = counts [- / 10 min]. Note that "n_cycles" == k if k is given as binning factor
+            cycles_sector_j = rainflow_func(moment_timeseries_case_i_sector_j, k = n_rainflow_bins)
             
             # Scale the moment ranges 1% according to reports to account for the period prior to RNA attachment during commissioning and after RNA detachment during decommissioning
-            ranges_and_counts_sector_j[:, [0]] *= DEM_scale
+            cycles_sector_j[:, [0]] *= DEM_scale
             
             # Calculate the sum of ranges and counts ("internal DEM sum") of the point at (geo_idx, sector_idx) by
-            # for moment_range, count in ranges_and_counts_sector_j:
+            # for moment_range, count in cycles_sector_j:
             #   res += count * (moment_range)**wohler
             # For efficiency we use dot product instead of summing 128 elements each loop 
             
-            m_ranges_sector_j = ranges_and_counts_sector_j[:, [0]]
-            counts_sector_j = ranges_and_counts_sector_j[:, [1]]
+            moment_ranges_sector_j = cycles_sector_j[:, [0]]
+            counts_sector_j = cycles_sector_j[:, [1]]
             
-            DEM_sum[[geo_idx], [sector_idx]] = ((m_ranges_sector_j.T)**m).dot(counts_sector_j)
+            DEM_sum[[geo_idx], [sector_idx]] = ((moment_ranges_sector_j.T)**m).dot(counts_sector_j)
                 
             if store_ranges:
-                # NOTE it makes sense to not store zero count-ranges, but this made it hard to create a standard sized numpy array. This can be fixed by another script later
-                ranges_and_counts_all_sectors[sector_idx, :, :] = ranges_and_counts_sector_j
+                cycles_all_sectors[sector_idx, :, :] = cycles_sector_j
                 
         if store_ranges:
-            fastio_save(range_storage_path.format(geo_dict['member_JLO']), ranges_and_counts_all_sectors)
+            path_cycles_at_member = range_storage_path.format(geo_dict['member_JLO'])
+            fastio_save(path_cycles_at_member, cycles_all_sectors)
     
     return DEM_sum # (n_geo, n_angles) shaped array

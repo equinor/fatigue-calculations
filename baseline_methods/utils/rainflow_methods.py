@@ -2,6 +2,11 @@ import numpy as np
 import rainflow 
 import qats
 
+'''
+Scripts for rainflow cycle counting
+Previously contained fatpack, but not used now
+'''
+
 def get_range_and_count_rainflow(stress_timeseries, k = 128):
     '''
     Uses rainflow counting for finding stress ranges and their respective counts 

@@ -50,8 +50,8 @@ def calculate_damage_case_i(binary_file_i, description_file_i, point_angles, geo
         # def calculate_damage_case_i(stress_timeseries_case_i, curve, rainflow_func):
         for ang_idx, stress_timeseries_case_i_ang_j in enumerate(stress_timeseries_case_i):
             
-            # stress_ranges comes as (N_stress_ranges, n_counts) sized matrix
-            stress_ranges = rainflow_func(stress_timeseries_case_i_ang_j, k = 128)   
-            damage[geo_idx, ang_idx] = curve.miner_sum(stress_ranges)
+            # stress_cycles comes as (N_stress_ranges, n_counts) sized matrix
+            stress_cycles = rainflow_func(stress_timeseries_case_i_ang_j, k = 128)   
+            damage[geo_idx, ang_idx] = curve.miner_sum(stress_cycles)
             
     return damage # (n_geo, n_angles) shaped array

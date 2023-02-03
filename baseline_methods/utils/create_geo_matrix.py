@@ -43,8 +43,8 @@ def create_geo_matrix(geometry, point_angles, curve):
         out_df[geo_idx]['I'] = I
         out_df[geo_idx]['Z'] = Z
         out_df[geo_idx]['elevation'] = geo_row['z']
-        out_df[geo_idx]['wt'] = min( 14.0 + 0.66 * geo_row['L_t'], geo_row['T']) # [mm] Effective thickness scaling
-        out_df[geo_idx]['alpha'] = max(1.0, (out_df[geo_idx]['wt'] / curve.t_ref )**curve.k ) # Stress scaling factor
+        out_df[geo_idx]['t_eff'] = min( 14.0 + 0.66 * geo_row['L_t'], geo_row['T']) # [mm] Effective thickness scaling
+        out_df[geo_idx]['alpha'] = max(1.0, (out_df[geo_idx]['t_eff'] / curve.t_ref )**curve.k ) # Stress scaling factor
         out_df[geo_idx]['actual_angles'] = actual_point_angles
         out_df[geo_idx]['scf_per_point'] = scf_per_point
         out_df[geo_idx]['member_JLO'] = geo_row['member_JLO']
