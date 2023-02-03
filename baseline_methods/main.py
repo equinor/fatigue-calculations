@@ -24,7 +24,7 @@ Implementation of in-place damage of the Dogger Bank wind turbines
 - This damage can be stored as a binary file and used for lifetime calculations etc. 
 
 Code improvement TODO
-- Create a wrapper for argparse to clean the command line input
+- Create a wrapper for argparse to clean the command line input-handling
 '''
 
 if __name__ == '__main__':
