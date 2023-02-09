@@ -11,7 +11,7 @@ def global_2_compass(angles):
     """
     if isinstance(angles, list):
         return list(np.mod(180.0 - np.array(angles), 360))
-    elif isinstance(angles, np.array):
+    elif isinstance(angles, np.ndarray):
         assert len(angles.shape) == 1, 'Numpy array of angles is only meant to be one dimensional'
         return np.mod(180.0 - angles, 360)
     elif isinstance(angles, float) or isinstance(angles, np.float64) or isinstance(angles, np.float32):

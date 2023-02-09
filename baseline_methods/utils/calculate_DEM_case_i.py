@@ -4,7 +4,7 @@ import sys
 import json
 from utils.fastnumpyio import save as fastio_save
 
-def calculate_DEM_case_i(binary_file_i, description_file_i, point_angles, geo_matrix, curve, rainflow_func, store_ranges, range_storage_path):
+def calculate_DEM_case_i(binary_file_i, description_file_i, sectors, geo_matrix, rainflow_func, store_cycles, cycle_storage_path):
     """
     Calculates in-place Damage Equivalent (bending) Moment of a time series 
     - Reads simulation files from vendor and extracts moment time series in x and y
@@ -15,11 +15,10 @@ def calculate_DEM_case_i(binary_file_i, description_file_i, point_angles, geo_ma
     Args:
         binary_file_i (str): path of simulation result binary file
         description_file_i (str): path of simulation description file, containing information about the format in the binary files
-        point_angles (list): angles of relevant sectors, in degrees
+        sectors (list): angles of relevant sectors, in degrees
         geo_matrix (dict): dictionary containing the various geometry details at different elevations
-        curve (SN_curve): SN_curve for the given material - NOTE unused here, but still passed as a var for this function to be passable just like calculate_DEM_case_i
         rainflow_func (func): a python function for returning (ranges, counts) from a timeseries using rainflow counting
-        range_storage_path (str): path to where ranges can be stored if used later
+        cycle_storage_path (str): path to where ranges can be stored if used later
 
     Returns:
         np.array: 2D array containing internal DEM sum for each geometry (rows), for each sector/angle (columns) for the current DLC case
@@ -31,7 +30,7 @@ def calculate_DEM_case_i(binary_file_i, description_file_i, point_angles, geo_ma
     n_rainflow_bins = 128
     
     content_reshaped = read_bladed_file(binary_file_i, description_file_i) # (n,m) numpy array with n = no. of quantities of data,  m = no. of timesteps for each data quantity 
-    DEM_sum = np.zeros((len(geo_matrix), len(point_angles)))
+    DEM_sum = np.zeros((len(geo_matrix), len(sectors)))
     
     for geo_idx, geo_dict in geo_matrix.items():
         
@@ -39,13 +38,11 @@ def calculate_DEM_case_i(binary_file_i, description_file_i, point_angles, geo_ma
         moments_x_timeseries = content_reshaped[[pos[0]], :] # Moments as (1, timesteps) array - hence the [[],:] type slice
         moments_y_timeseries = content_reshaped[[pos[1]], :] # Moments as (1, timesteps) array
 
-        # Find angles according to possible SCF specifications. If 'omni', angles will be as originally and SCF = 1 for all angles
-        actual_angles_rad = np.deg2rad(geo_dict['actual_angles']) # TODO this works for nodes / members, but not any non-omni angle since the actual angles are given in compass angles
-        
+        sectors_rad = np.deg2rad(sectors)
         # Resulting moment time series in shape (n_angles, n_timesteps)
-        res_moments_timeseries_case_i = np.sin([actual_angles_rad]).T.dot(moments_x_timeseries) - np.cos([actual_angles_rad]).T.dot(moments_y_timeseries)
+        res_moments_timeseries_case_i = np.sin([sectors_rad]).T.dot(moments_x_timeseries) - np.cos([sectors_rad]).T.dot(moments_y_timeseries)
         
-        cycles_all_sectors = np.zeros((len(point_angles), n_rainflow_bins, 2)) # an array with rows representing each sector, and each cell representing one list of a [moment_range_i, count_i] pair: 
+        cycles_all_sectors = np.zeros((len(sectors), n_rainflow_bins, 2)) # an array with rows representing each sector, and each cell representing one list of a [moment_range_i, count_i] pair: 
         
         for sector_idx, moment_timeseries_case_i_sector_j in enumerate(res_moments_timeseries_case_i):
             # cycles comes as (n_cycles, 2) sized matrix with col 0 = moment_ranges [Nm] and col 1 = counts [- / 10 min]. Note that "n_cycles" == k if k is given as binning factor
@@ -54,21 +51,23 @@ def calculate_DEM_case_i(binary_file_i, description_file_i, point_angles, geo_ma
             # Scale the moment ranges 1% according to reports to account for the period prior to RNA attachment during commissioning and after RNA detachment during decommissioning
             cycles_sector_j[:, [0]] *= DEM_scale
             
-            # Calculate the sum of ranges and counts ("internal DEM sum") of the point at (geo_idx, sector_idx) by
-            # for moment_range, count in cycles_sector_j:
-            #   res += count * (moment_range)**wohler
-            # For efficiency we use dot product instead of summing 128 elements each loop 
+            ''' 
+            Calculate the sum of ranges and counts ("internal DEM sum") of the point at (geo_idx, sector_idx) by
+            for moment_range, count in cycles_sector_j:
+              res += count * (moment_range)**wohler
+            For efficiency we use dot product instead of summing 128 elements each loop 
+            '''
             
             moment_ranges_sector_j = cycles_sector_j[:, [0]]
             counts_sector_j = cycles_sector_j[:, [1]]
             
             DEM_sum[[geo_idx], [sector_idx]] = ((moment_ranges_sector_j.T)**m).dot(counts_sector_j)
                 
-            if store_ranges:
+            if store_cycles:
                 cycles_all_sectors[sector_idx, :, :] = cycles_sector_j
                 
-        if store_ranges:
-            path_cycles_at_member = range_storage_path.format(geo_dict['member_JLO'])
+        if store_cycles:
+            path_cycles_at_member = cycle_storage_path.format(geo_dict['member_JLO'])
             fastio_save(path_cycles_at_member, cycles_all_sectors)
     
     return DEM_sum # (n_geo, n_angles) shaped array

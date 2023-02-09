@@ -1,8 +1,12 @@
-# stolen from https://github.com/divideconcept/fastnumpyio/blob/main/fastnumpyio.py
 import sys
 import numpy as np
 import numpy.lib.format
 import struct
+
+'''
+Functions for speeding up np.save() and np.load()
+# credit to https://github.com/divideconcept/fastnumpyio/blob/main/fastnumpyio.py
+'''
 
 def save(file, array):
     magic_string=b"\x93NUMPY\x01\x00v\x00"
