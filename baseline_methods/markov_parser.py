@@ -10,10 +10,10 @@ from utils.fastnumpyio import load as fastio_load
 from utils.fastnumpyio import save as fastio_save
 from natsort import natsorted
 
-def get_markov_files_paths(range_storage_path: str, identifier: str):
+def get_markov_files_paths(cycle_storage_path: str, identifier: str):
     # Files are found as strings, so Python sorts them lexicographical where ['10', '1', '2'].sort() = ['1', '10', '2' ]
     # natsort sorts like expected: ['1', '2', '10']
-    return natsorted([(range_storage_path + '\\' + file_name) for file_name in os.listdir(range_storage_path) if (identifier in file_name)])
+    return natsorted([(cycle_storage_path + '\\' + file_name) for file_name in os.listdir(cycle_storage_path) if (identifier in file_name)])
 
 def open_npy_range_and_scale_counts(file, weight):
     # return the array with scaled counts according to weights and 10min->yr factor
@@ -22,7 +22,7 @@ def open_npy_range_and_scale_counts(file, weight):
     ranges[:, :, 1] *= weight * 6.0
     return ranges
 
-def parse_markov_files_npy_member_i(range_storage_path: str, 
+def parse_markov_files_npy_member_i(cycle_storage_path: str, 
                                     member: int = 72,
                                     DLC_IDs: list = ['DLC12', 'DLC24a', 'DLC31', 'DLC41a', 'DLC41b', 'DLC64a', 'DLC64b'], 
                                     cluster_ID: str = 'JLO'):
@@ -37,7 +37,7 @@ def parse_markov_files_npy_member_i(range_storage_path: str,
         probabilities = list(DLC_info_df.Tot_Prob_in_10_percent_idling_scenario_hr_year) # Extract directly from excel
         
         # Collect file paths of prepared ranges from main script previously. Scale all counts according to prob of occurence of case
-        file_paths_DLC_i = get_markov_files_paths(range_storage_path, identifier = fr'DB_{cluster_ID}_{DLC_ID}_member{member}')
+        file_paths_DLC_i = get_markov_files_paths(cycle_storage_path, identifier = fr'DB_{cluster_ID}_{DLC_ID}_member{member}')
         multiprocess_args = [(file_paths_DLC_i[i], probabilities[i]) for i in range(len(file_paths_DLC_i))]
         
         logger.info(f'Starting markov concat on {DLC_ID} with {len(file_paths_DLC_i)} cases')
@@ -58,19 +58,21 @@ def parse_markov_files_npy_member_i(range_storage_path: str,
 
 if __name__ == '__main__':
     logger = setup_custom_logger('Main')
-    range_storage_path = fr'{os.getcwd()}\output\markov'
+    cycle_storage_path = fr'{os.getcwd()}\output\markov'
     output_path = fr'{os.getcwd()}\output\total_markov_member' + '{}.npy'
     DLC_IDs = ['DLC12', 'DLC24a', 'DLC31', 'DLC41a', 'DLC41b', 'DLC64a', 'DLC64b']
-    mbr_to_el_map = {54: 22.4, 72: 11.2, 84: 6.5, 91: 4.275} # TODO this should be handled by the geometry file
     
-    logger.info(f'Starting markov parsing for {len(mbr_to_el_map)} elevations: {list(mbr_to_el_map.values())}')
+    member_geometry = pd.read_excel(fr'{os.getcwd()}\data\DA_P53_CD_members.xlsx')
+    member_2_elevation_map = {k: v for k, v in zip(member_geometry['member_JLO'], member_geometry['elevation'])}
     
-    for member in list(mbr_to_el_map.keys()):
+    logger.info(f'Starting markov parsing for {len(member_2_elevation_map)} elevations: {list(member_2_elevation_map.values())}')
+    
+    for member in list(member_2_elevation_map.keys()):
         
-        logger.info(f'Parsing markov ranges for member {member} @ {mbr_to_el_map[member]} mLat')
-        ranges_elevation_i = parse_markov_files_npy_member_i(range_storage_path = range_storage_path, member = member, DLC_IDs = DLC_IDs)
+        logger.info(f'Parsing markov ranges for member {member} @ {member_2_elevation_map[member]} mLat')
+        ranges_elevation_i = parse_markov_files_npy_member_i(cycle_storage_path = cycle_storage_path, member = member, DLC_IDs = DLC_IDs)
         
-        logger.info(f'Storing npy array for member {member}')
+        logger.info(f'Storing npy array for member {member}\n')
         fastio_save(output_path.format(member), ranges_elevation_i)
         del ranges_elevation_i # this improves speed signifificantly, not quite sure why, thought it would matter the most for memory, which is not really affected here
     
