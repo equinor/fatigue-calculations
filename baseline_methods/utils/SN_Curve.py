@@ -101,7 +101,7 @@ class SN_Curve_qats:
                                           loga1 = self.data["loga"]
                                           )
         else: 
-            self.SN = qats.fatigue.sn.SNCurve(name='{curve_class}-{curve_type}',
+            self.SN = qats.fatigue.sn.SNCurve(name=f'{curve_class}-{curve_type}',
                                           m1 = self.data["m1"], # slope for N <= Nd cycles
                                           m2 = self.data["m2"], # slope for N > Nd cycles
                                           loga1 = self.data["loga1"], # crossing point for one linear curve
@@ -164,23 +164,26 @@ class SN_Curve_qats:
             
 if __name__ == '__main__':
     
-    curve = SN_Curve_qats('B2-air')
     
-    D = 8.0
+    # The code below is for testing against reported values
+    D = 7.862
     t = 69. / 1000
-    alpha = 1.0
-    I = np.pi / 64.0 * (D**4 - (D - 2*t)**4) # [m**4]
-    SCF = 2.45
-    grit = 1.0
+    curve = SN_Curve_qats('F-air')
     DFF = 3.0
     Neq = 1e7
+    Meq = 90.2 
+    SCF = 1.0
+    grit = 1.0
+    alpha = 1.134
+    in_out = 'i'
     
     # All vals below are in 1e6
-    Meq = 88.5 
-    Seq = Meq * D / (2*I)
+    I = np.pi / 64.0 * (D**4 - (D - 2*t)**4) # [m**4]
+    Z = I / (D/2) if in_out == 'o' else I / (D/2 - t) # [m**3] - Defines inner or outer location
+    Seq = Meq / Z
     Shs = Seq * SCF * grit * alpha
     
     util = curve.miner_sum( np.array([[Shs, Neq]])) * DFF
     
-    print(f'Meq {Meq:.1f}, Seq {Seq:.1f}, Shs {Shs:.1f}, util {util:.1f}')
+    print(f'Meq {Meq:.1f}, Seq {Seq:.1f}, Shs {Shs:.1f}, util {util*100:.1f}')
     

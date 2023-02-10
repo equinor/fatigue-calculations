@@ -26,6 +26,7 @@ def create_geo_matrix(geometry, sectors):
         A = np.pi * ((D/2)**2 - ((D - 2*t)/2)**2) # [m**2] Area in the plane of the current circular, holed geometry 
         I = np.pi / 64.0 * (D**4 - (D - 2*t)**4) # [m**4]
         Z = I / (D/2) if geo_row['in_out'].lower() == 'o' else I / (D/2 - t) # [m**3] - Defines inner or outer location
+        out_df[geo_idx]['in_out'] = geo_row['in_out']
         
         sectors_compass = global_2_compass(sectors)
         

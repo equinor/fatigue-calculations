@@ -5,6 +5,7 @@ import sys
 def calculate_damage_case_i(binary_file_i, description_file_i, sectors, geo_matrix, rainflow_func, store_cycles, cycle_storage_path):
     """
     Calculates in-place damage of a turbine geometry for a single DLC case
+    NOTE This script can only calculate damage for a geometry / elevation that is a member from the result simulations
     - Reads simulation files from vendor and extracts moments, forces time series
     - Transforms time series into stress and scales it according to SCF and alpha
     - Uses rainflow counting to find the various stress ranges over the given time period
