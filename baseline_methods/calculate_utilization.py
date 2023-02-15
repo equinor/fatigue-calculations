@@ -7,38 +7,43 @@ from utils.create_geo_matrix import create_geo_matrix
 from utils.fastnumpyio import load as fastio_load 
 from utils.transformations import compass_2_global, global_2_compass
 from utils.setup_custom_logger import setup_custom_logger
-
+import json
+from read_structural_report import read_utilization_and_store_geometries
 
 # TODO functions? So that it can be used by other scripts as well 
 
+def find_above_below_closest_elevations(df, member_elevations):
+    df['dist_to_members'] = df.apply(lambda row: member_elevations - row['elevation'], axis=1)
+    df['idx_elevation_above'] = df.apply(lambda row: np.ma.MaskedArray(row['dist_to_members'], row['dist_to_members'] < 0.0).argmin(), axis=1)
+    df['idx_elevation_below'] = df.apply(lambda row: np.ma.MaskedArray(row['dist_to_members'], row['dist_to_members'] >= 0.0).argmax(), axis=1)
+    df['idx_elevation_closest'] = df.apply(lambda row: np.abs(row['dist_to_members']).argmin(), axis=1)
+    return member_elevations[df['idx_elevation_above']],  member_elevations[df['idx_elevation_below']], member_elevations[df['idx_elevation_closest']]
 
-if __name__ == '__main__':
+def return_worst_elevation(df):
+    report_worst_elevation_idx = pd.to_numeric(df['in_place_utilization']).argmax()
+    df_res = df.iloc[report_worst_elevation_idx].copy()   
+    df_res = df_res[ ['elevation', 'in_out', 'description', 'in_place_utilization'] ].copy()
+    all_rule_utilizations = (df['rule_miner_sum_no_DFF'] * df['rule_DFF'] * 100).copy()
+    df_res['rule_utilization'] = all_rule_utilizations[report_worst_elevation_idx]
+    rule_worst_elevation_idx = all_rule_utilizations.argmax()
+    df_res['rule_worst_elevation'] = df.iloc[rule_worst_elevation_idx]['elevation']
+    df_res['rule_worst_utilization'] = all_rule_utilizations.iloc[rule_worst_elevation_idx]
+    return df_res
+
+def calculate_utilization_single_turbine(sectors, member_path, DEM_data_path, geo_path, member_markov_path, result_path, DFFs: list, store_utils_all_elevations = False):
     
-    logger = setup_custom_logger('utilization')
-    logger.info(f'Initiating utilization for turbine DA_P53_CD')
-
-    # Get relevant data_paths for DLC and simulation result files
-    member_geometry_file_path = fr'{os.getcwd()}\data' +  r'\DA_P53_CD_members.xlsx'
-    sectors  = [float(i) for i in range(0,359,15)] 
-    
-    # Extract file for all DEM sums per geo, per elevation
-    DEM_data_path = fr'{os.getcwd()}\output\python_combined_DEM.xlsx'
-    df_DEM_members_xlsx = pd.read_excel(DEM_data_path)
-
-    # Define DEM and utilization variables
-    T_lifetime = 25.75 # 27.08
-    N_equivalent = 1e7
+    # Define DEM variables
     wohler_exp = 5.0
-    DFF = 3.0
     
     # Load geometries of interest
-    geometries_of_interest_df = pd.read_excel(fr'{os.getcwd()}\unused\marius\DA_P53_CD_all.xlsx')
+    geometries_of_interest_df = pd.read_excel(geo_path)
+    turbine_name = geometries_of_interest_df.iloc[0]['turbine_name']
+    cluster_ID = geometries_of_interest_df.iloc[0]['cluster_ID']
     
-    # TODO to be improved
-    geometries_of_interest_df['gritblast'] = geometries_of_interest_df['gritblast'].fillna(1.0)
-    geometries_of_interest_df['scf'] = geometries_of_interest_df['scf'].fillna(1.0)
-    geometries_of_interest_df['largest_weld_length'] = geometries_of_interest_df['largest_weld_length'].fillna(70)
-    # TODO to be improved
+    member_geometry = pd.read_excel(member_path.format(cluster_ID))
+    df_DEM_members_xlsx = pd.read_excel(DEM_data_path.format(cluster_ID))
+    
+    member_2_elevation_map = {k: v for k, v in zip(member_geometry[f'member_{cluster_ID}'], member_geometry['elevation'])}
     
     # Create geometries with pre-calculated A, I, Z, alpha etc
     geometries_of_interest = create_geo_matrix(geometries_of_interest_df, sectors)
@@ -47,84 +52,134 @@ if __name__ == '__main__':
     member_elevations = np.array([float(key) for key in (df_DEM_members_xlsx['mLat'].values)])
     
     df = pd.DataFrame(pd.DataFrame(geometries_of_interest)).T
-    df = df[df['elevation'] >= member_elevations.min()] # we cannot interpolate locations below the seabed
+    df = df[df['elevation'] >= member_elevations.min()] # we cannot interpolate locations below the lowest member elevation with available time series
+    n_elevations = df.shape[0]
     
-    logger.info(f'Manipulating result df of {df.shape[0]} elevations')
-    df['geo'] = df.apply(lambda row: geometries_of_interest[row.name], axis=1)
+    if not DFFs: # handles None, 0, empty list 
+        print('Encountered empty list / None value - interpreting all DFFs as 3.0')
+        DFFs = [3.0] * n_elevations
+    else:
+        if (type(DFFs) in [list, np.ndarray]) and (len(DFFs) != n_elevations): 
+            # DFFs given as list must be matching the number of elevations of interest - trying to use first given DFF for all
+            try: 
+                DFFs = [DFFs[0]] * n_elevations
+            except IndexError as err: # DFFS given as empty list 
+                DFFs = [3.0] * n_elevations
+            except TypeError as err: # DFFS given as something non-subscriptable
+                DFFs = [3.0] * n_elevations
+            
+    # Start adding the various properties
     df['curve'] = df.apply(lambda row: row['sn_curve'].SN.name, axis=1)
-    df['dist_to_members'] = df.apply(lambda row: member_elevations - row['elevation'], axis=1)
-    df['idx_above'] = df.apply(lambda row: np.ma.MaskedArray(row['dist_to_members'], row['dist_to_members'] < 0.0).argmin(), axis=1)
-    df['idx_below'] = df.apply(lambda row: np.ma.MaskedArray(row['dist_to_members'], row['dist_to_members'] >= 0.0).argmax(), axis=1)
-    df['idx_closest'] = df.apply(lambda row: np.abs(row['dist_to_members']).argmin(), axis=1)
-    df['elevation_above'] = member_elevations[df['idx_above']]
-    df['elevation_below'] = member_elevations[df['idx_below']]
-    df['elevation_closest'] = member_elevations[df['idx_closest']]
-    df['above_is_closest'] = df['elevation_closest'] > df['elevation']
-    df['above_DEM_sums'] = df.apply(lambda row: np.array(df_DEM_members_xlsx.iloc[row['idx_above']][1:]), axis=1)
-    df['below_DEM_sums'] = df.apply(lambda row: np.array(df_DEM_members_xlsx.iloc[row['idx_below']][1:]), axis=1)
-    df['DEM_elevation_above'] = ((T_lifetime / N_equivalent * df['above_DEM_sums'])**(1 / wohler_exp))
-    df['DEM_elevation_below'] = ((T_lifetime / N_equivalent * df['below_DEM_sums'])**(1 / wohler_exp))
-    df['DEM_elevation_closest'] = df.apply(lambda row: row['DEM_elevation_above'] if row['above_is_closest'] else row['DEM_elevation_below'], axis=1)
+    above, below, close = find_above_below_closest_elevations(df,member_elevations)
+    df['elevation_above'] = above
+    df['elevation_below'] = below
+    df['elevation_closest'] = close
+    df['above_DEM_sums'] = df.apply(lambda row: np.array(df_DEM_members_xlsx.iloc[row['idx_elevation_above']][1:]), axis=1) # 1: is used since first column contains the member mLat values
+    df['below_DEM_sums'] = df.apply(lambda row: np.array(df_DEM_members_xlsx.iloc[row['idx_elevation_below']][1:]), axis=1)
+    df['DEM_elevation_above'] = df.apply(lambda row: ((row['lifetime'] / row['Nref'] * row['above_DEM_sums'])**(1 / wohler_exp)), axis=1) #((T_lifetime / N_equivalent * df['above_DEM_sums'])**(1 / wohler_exp))
+    df['DEM_elevation_below'] = df.apply(lambda row: ((row['lifetime'] / row['Nref'] * row['below_DEM_sums'])**(1 / wohler_exp)), axis=1) #((T_lifetime / N_equivalent * df['below_DEM_sums'])**(1 / wohler_exp))
+    df['DEM_elevation_closest'] = df.apply(lambda row: row['DEM_elevation_above'] if (row['elevation_closest'] > row['elevation']) else row['DEM_elevation_below'], axis=1)
     df['DEM_interpolated'] = df['DEM_elevation_below'] + (df['DEM_elevation_above'] - df['DEM_elevation_below']) * ( (df['elevation'] - df['elevation_below']) / (df['elevation_above'] - df['elevation_below']) )
-    df['max_DEM_hs_MPa'] = df.apply(lambda row: row['DEM_interpolated'].max() / 1e6, axis=1)
-    df['largest_DEM_sector_idx'] = df.apply(lambda row: row['DEM_interpolated'].argmax(), axis=1)
-    df['reference_sector_compass'] = df.apply(lambda row: global_2_compass(sectors[row['largest_DEM_sector_idx']]), axis=1)
-        
-    logger.info('Gathering pre calculated markov matrices from member elevations')
-    markov_path = fr'{os.getcwd()}\output\total_markov_member' + '{}.npy'
-    member_geometry = pd.read_excel(member_geometry_file_path)
-    member_2_elevation_map = {k: v for k, v in zip(member_geometry['member_JLO'], member_geometry['elevation'])}
-    elevation_2_member_map = {k: v for k, v in zip(member_geometry['elevation'], member_geometry['member_JLO'])}
     
-    df['member_closest'] = df.apply(lambda row: elevation_2_member_map[row['elevation_closest']], axis=1)
+    # Choose DEM at the closest sector to the SCF orientation. If omnidirectional => choose the largest DEM at the reference elevation
+    df['closest_sector_idx'] = df.apply(lambda row: row['DEM_interpolated'].argmax() if row['orientation'] == None else np.absolute(sectors - row['orientation']).argmin(), axis=1)
+    df['ref_orientation'] = df.apply(lambda row: global_2_compass(sectors[row['closest_sector_idx']]), axis=1)
+    df['DEM_hs_MPa'] = df.apply(lambda row: row['DEM_interpolated'][row['closest_sector_idx']] / 1e6, axis=1)    
     
+    # Gather pre calculated markov matrices from member elevations')
     markov_matrices = {}
     for mbr in member_2_elevation_map.keys():
-        path = markov_path.format(mbr)
+        path = member_markov_path.format(mbr)
         member_elevation = member_2_elevation_map[mbr]
-        logger.info(f'loading matrix for {member_elevation}')
+        print(f'loading matrix for {member_elevation}')
         markov_matrices[member_elevation] = np.array(fastio_load(path))
     
-    logger.info('Calculating utilization for all other elevations:')
-    # choose worst or nearest sector as reference markov matrix
-    # starting with worst: reason is that report, table E80, chooses 11.2mLat, 180degN as reference for 9.69mLat, 166.7degN, when actually 165 degN is closest. 
-    logger.info('Collecting markov reference for closest elevations at worst sector')
-    df['markov_reference'] = df.apply(lambda row: markov_matrices[row['elevation_closest']][row['largest_DEM_sector_idx']], axis=1)
+    # Calculate utilization for all other elevations
     
-    logger.info('Sorting markov reference by ascending moment range order')
-    df['markov_reference'] = df.apply(lambda row: row['markov_reference'][ row['markov_reference'][:, 0].argsort() ], axis=1) # sort according to ascending moment ranges
+    # choose closest sector as reference markov matrix
+    print('Collecting markov reference for closest elevations at worst sector')
+    df['markov_reference'] = df.apply(lambda row: markov_matrices[row['elevation_closest']][row['closest_sector_idx']], axis=1)
+    
+    # NOTE sorting could be beneficial to avoid rounding errors, but takes a lot of time
+    #logger.info('Sorting markov reference by ascending moment range order')
+    #df['markov_reference'] = df.apply(lambda row: row['markov_reference'][ row['markov_reference'][:, 0].argsort() ], axis=1) # sort according to ascending moment ranges
 
-    logger.info('Scale reference markov for hotspot')
-    # Create markov ranges for the hotspots where the moment ranges has been scaled according to the DEM_scf / DEM_elevation_closest factor
-    df['DEM_scaling_factor'] = df.apply(lambda row: row['DEM_interpolated'][row['largest_DEM_sector_idx']] / row['DEM_elevation_closest'][row['largest_DEM_sector_idx']], axis=1) 
+    # Scale reference markov for hotspot: moment ranges scaled according to the DEM_scf / DEM_elevation_closest factor
+    df['DEM_scaling_factor'] = df.apply(lambda row: row['DEM_interpolated'][row['closest_sector_idx']] / row['DEM_elevation_closest'][row['closest_sector_idx']], axis=1) 
     df['markov_hotspot'] = df.apply(lambda row: np.hstack( (row['markov_reference'][:, [0]] * row['DEM_scaling_factor'], row['markov_reference'][:, [1]])), axis=1)
     
-    logger.info('Calculate stress')
-    # Calculate nominal stress ranges, then calculate stress ranges with scf, alpha and grit blasting, and translate to MPa
-    #df['stress_ranges_nominal'] = df.apply(lambda row: row['markov_hotspot'][:, [0]] * row['D'] / (2 * row['I']), axis=1)
-    #df['stress_ranges_scaled'] = df.apply(lambda row: row['stress_ranges_nominal'] * row['scf'] * row['alpha'] * row['gritblast'], axis=1)
+    # Calculate stress
+    df['stress_ranges_scaled'] = df.apply(lambda row: row['markov_hotspot'][:, [0]] / row['Z'] * row['scf'] * row['gritblast'] * row['alpha'], axis=1)
     
-    df['stress_ranges_scaled'] = df.apply(lambda row: row['markov_hotspot'][:, [0]] / row['Z'] * row['scf'] * row['alpha'] * row['gritblast'], axis=1)
-    df['Seq'] = df['max_DEM_hs_MPa'] / df['Z'] 
+    # Store the equivalent nominal and hotspot stress range 
+    df['Seq'] = df['DEM_hs_MPa'] / df['Z']
     df['Seq_hs'] = df['Seq'] * df['scf'] * df['gritblast']
     
-    # create stress cycles made out of stress in MPa and counts over entire lifetime
-    df['stress_cycles_MPa_lifetime'] = df.apply(lambda row: np.hstack( (row['stress_ranges_scaled'] / 1e6, row['markov_reference'][:, [1]] * T_lifetime)), axis=1)
+    # Create stress cycles made out of stress in MPa and counts over entire lifetime, 
+    # Exception is if validation type is "Equivalent", in which we skip the markov matrix scaling and calculate stress directly from DEM
+    df['stress_cycles_MPa_lifetime'] = df.apply(lambda row: 
+        np.hstack( (row['stress_ranges_scaled'] / 1e6, row['markov_reference'][:, [1]] * row['lifetime'])) if row['ValType'].lower() != 'equivalent' 
+        else np.array([[row['Seq_hs'] * row['alpha'], row['Nref']]]), axis=1)
     
-    logger.info('Calculate utilization')
-    # calculate utilization through miner sum with DFF
-    df['rule_utilization'] = df.apply(lambda row: row['sn_curve'].miner_sum(row['stress_cycles_MPa_lifetime']) * DFF * 100, axis=1)
+    # Calculate utilization through miner sum, without DFF, as DFF is stored to be applied and possibly changedlater
+    df['rule_miner_sum_no_DFF'] = df.apply(lambda row: row['sn_curve'].miner_sum(row['stress_cycles_MPa_lifetime']), axis=1)
+    df['rule_DFF'] = df.apply(lambda row: DFFs[row.name], axis=1)
+    
+    print('Saving out df')
+    df = df[['elevation', 'in_out', 'description', 'D', 't', 
+             'curve', 'DEM_hs_MPa', 'Seq', 'scf', 'gritblast',
+             'Seq_hs', 'L_t', 't_eff', 'alpha', 'rule_miner_sum_no_DFF', 
+             'rule_DFF', 'in_place_utilization', 'DEM_scaling_factor',
+             'elevation_closest', 'closest_sector_idx', 'ValType']].copy()
+    
+    if store_utils_all_elevations:
+        df.to_excel(result_path + fr'\{turbine_name}_util_rule_vs_report.xlsx', index = False)
+        pd.options.display.max_rows = 100 # Print more rows
+        print(df)
+    
+    df_res = return_worst_elevation(df)
+    result_path.format(cluster_ID)
+    
+    if not os.path.exists(result_path):
+        os.makedirs(result_path)
+        
+    df_res.to_excel(result_path + fr'\{turbine_name}_util_comparison.xlsx', index = False)
+    
+    return df
 
-    logger.info('Saving out df')
-    df_out = df[['elevation', 'in_out', 'D', 't', 'curve',
-                 'max_DEM_hs_MPa', 'Seq', 'scf', 'gritblast',
-                 'Seq_hs', 'L_t', 't_eff', 'alpha', 'rule_utilization',
-                 'in_place_utilization', 'DEM_scaling_factor',
-                 'elevation_closest', 'member_closest', 'largest_DEM_sector_idx']].copy()
-    # del df
-    df_out['util_diff'] = df_out['rule_utilization'] - df_out['in_place_utilization']
-    df_out['util_fraction'] = df_out['util_diff'] / df_out['in_place_utilization']
-    # df_out.loc[:, (df_out.columns != 'alpha') | (df_out.columns != 'gritblasting') | (df_out.columns != 'scf') | (df_out.columns != 'util_fraction')] = df_out.loc[:, (df_out.columns != 'alpha') | (df_out.columns != 'gritblasting') | (df_out.columns != 'scf') | (df_out.columns != 'util_fraction')].round(1)
-    df_out.to_excel(fr'{os.getcwd()}\output\DA_P53_CD_rule_vs_report.xlsx')
+if __name__ == '__main__':
     
-    logger.info('Utilization script finished')
+    structural_file_path = os.getcwd() + r'\data\structural_specific_reports'
+    filenames = next(os.walk(structural_file_path), (None, None, []))[2]
+    filenames = [filename for filename in filenames if 'sl_' not in filename.lower()]
+    
+    filenames = [os.getcwd() + r'\data\structural_specific_reports\P0061-C1224-WP03-REP-002-F - DA_P53_CD Foundation Structural Design Report.pdf']
+
+    turbine_names = [filename.split(' ')[2] for filename in filenames]
+    util_result_path = [os.getcwd() + fr'\output\{turbine_name}_util_and_geos.xlsx' for turbine_name in turbine_names]
+    
+    for file_i, file in filenames:
+        _ = read_utilization_and_store_geometries(filenames, util_result_path[file_i])
+    
+    logger = setup_custom_logger('util')
+    sectors = [float(i) for i in range(0,359,15)]
+    
+    # prepare file paths with formatting for cluster ID and turbine name
+    member_geo_path = fr'{os.getcwd()}\data' +  r'\{}_members.xlsx' # format for cluster_ID
+    DEM_data_path = fr'{os.getcwd()}\output' + r'\{}_combined_DEM.xlsx' # format for cluster_ID
+    result_path = fr'{os.getcwd()}\output\all_turbines' + r'\{}' # format for cluster_ID
+    member_markov_path = fr'{os.getcwd()}\output\total_markov_member' + r'{}.npy' # # format for member_no
+    geo_path = fr'{os.getcwd()}\output' + r'\{}_util_and_geos.xlsx'
+        
+    for i, turbine in enumerate(filenames):
+        logger.info(f'Initiating utilization for turbine {turbine_names[i]}')
+        _ = calculate_utilization_single_turbine(sectors = sectors,
+                                                member_path = member_geo_path,
+                                                DEM_data_path = DEM_data_path,
+                                                geo_path = geo_path, 
+                                                result_path = result_path, 
+                                                member_markov_path = member_markov_path,
+                                                DFFs = [], 
+                                                store_utils_all_elevations = True)
+        logger.info(f'Finished utilization for turbine {turbine_names[i]}')
+

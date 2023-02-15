@@ -1,5 +1,7 @@
 import pandas as pd
 
+# TODO there must be some logic here where the fatigue table contains weather params in order to linearly interpolate between weather scenarios
+
 def create_fatigue_table_DLC_i(damage, dlc_id, probs): 
     damage_dict = {f'dmg_sector_{sector_idx}': damage[:, sector_idx] for sector_idx in range(damage.shape[1])}
     df_damage   = pd.DataFrame(damage_dict)

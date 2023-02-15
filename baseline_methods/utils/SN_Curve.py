@@ -60,6 +60,7 @@ class SN_Curve_qats:
             W1 = dict(m1=3.0, loga1=11.261, m2=5, Nd=1e7, loga2=14.101, fl= 26.32, k=0.25),
             W2 = dict(m1=3.0, loga1=11.107, m2=5, Nd=1e7, loga2=13.845, fl= 23.39, k=0.25),
             W3 = dict(m1=3.0, loga1=10.970, m2=5, Nd=1e7, loga2=13.617, fl= 21.05, k=0.25),
+            Dg = dict(m1=3.5, loga1=13.540, m2=5, Nd=1e7, loga2=16.343, fl= 00.10, k=0.15), # Table F-9 S-N curves for improved details by grinding or hammer peening in air environment
         )
         
         classes = {'air': self.air, 'cath': self.cath, 'free': self.free}
@@ -131,7 +132,7 @@ class SN_Curve_qats:
             Uses the bilinear endurance curve to plot its characteristics / SN-plot for quick inspection 
             '''
             
-            plt.loglog(N, S)
+            plt.loglog(N, S, label = self.SN.name)
             plt.title(f'DNVGL RP-C203 SN curve in air, {self.SN.name}')
             plt.xlabel("Number of cycles")
             plt.ylabel("Stress range (MPa)")
@@ -166,24 +167,41 @@ if __name__ == '__main__':
     
     
     # The code below is for testing against reported values
-    D = 7.862
-    t = 69. / 1000
-    curve = SN_Curve_qats('F-air')
+    curve = SN_Curve_qats('dg-air')
+    
+    # curve2 = SN_Curve_qats('d-air')
+    # curve.plot_characteristics(info_on_plot=False)
+    # curve2.plot_characteristics(info_on_plot=False)
+    # plt.legend()
+    # plt.show()
+
+    D = 2 * 3.92
+    t = 84. / 1000
     DFF = 3.0
-    Neq = 1e7
-    Meq = 90.2 
-    SCF = 1.0
-    grit = 1.0
-    alpha = 1.134
+    SCF = 1.591
+    grit = 1.072
+    t_eff = 84. / 1000
+    alpha = max(1.0, (t_eff / curve.t_ref)**curve.k)
     in_out = 'i'
     
     # All vals below are in 1e6
-    I = np.pi / 64.0 * (D**4 - (D - 2*t)**4) # [m**4]
-    Z = I / (D/2) if in_out == 'o' else I / (D/2 - t) # [m**3] - Defines inner or outer location
-    Seq = Meq / Z
-    Shs = Seq * SCF * grit * alpha
+    if in_out == 'o':
+        A = np.pi * ((D/2)**2 - ((D - 2*t)/2)**2) # [m**2] Area in the plane of the current circular, holed geometry 
+        I = np.pi / 64.0 * (D**4 - (D - 2*t)**4) # [m**4]
+        Z = I / (D / 2)
+    else:
+        out_D = D + 2 * t
+        A = np.pi * (((out_D)/2)**2 - ((out_D - 2*t)/2)**2)
+        I = np.pi / 64.0 * (out_D**4 - (D)**4)
+        Z = I / (D / 2)
+
+    M = 98.70     
+    N = 11823.2
     
-    util = curve.miner_sum( np.array([[Shs, Neq]])) * DFF
+    S = M / Z
+    Shs = S * SCF * grit
     
-    print(f'Meq {Meq:.1f}, Seq {Seq:.1f}, Shs {Shs:.1f}, util {util*100:.1f}')
+    util = curve.miner_sum(np.array([[Shs * alpha, N]])) * DFF
+    
+    print(f'M {M:.2f}, S {S:.2f}, Shs {Shs:.2f}, util {util:.2e}')
     

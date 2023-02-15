@@ -61,14 +61,15 @@ def parse_markov_files_npy_member_i(cycle_storage_path: str,
 
 if __name__ == '__main__':
     logger = setup_custom_logger('Main')
-    cycle_storage_path = fr'{os.getcwd()}\output\markov'
-    output_path = fr'{os.getcwd()}\output\total_markov_member' + '{}.npy'
+    
+    cluster_ID = 'JLO'
     DLC_IDs = ['DLC12', 'DLC24a', 'DLC31', 'DLC41a', 'DLC41b', 'DLC64a', 'DLC64b']
+    cycle_storage_path = fr'{os.getcwd()}\output\markov'
+    output_path = fr'{os.getcwd()}\output\all_turbines\{cluster_ID}\total_markov_member' + '{}.npy'
+    member_geometry = pd.read_excel(fr'{os.getcwd()}\data\{cluster_ID}_members.xlsx')
+    member_2_elevation_map = {k: v for k, v in zip(member_geometry[f'member_{cluster_ID}'], member_geometry['elevation'])}
     
-    member_geometry = pd.read_excel(fr'{os.getcwd()}\data\DA_P53_CD_members.xlsx')
-    member_2_elevation_map = {k: v for k, v in zip(member_geometry['member_JLO'], member_geometry['elevation'])}
-    
-    logger.info(f'Starting markov parsing for {len(member_2_elevation_map)} elevations: {list(member_2_elevation_map.values())}')
+    logger.info(f'Starting markov parsing for {cluster_ID}, {len(member_2_elevation_map)} elevations: {list(member_2_elevation_map.values())}')
     for member in list(member_2_elevation_map.keys()):
         logger.info(f'Parsing markov ranges for member {member} @ {member_2_elevation_map[member]} mLat')
         ranges_elevation_i = parse_markov_files_npy_member_i(cycle_storage_path = cycle_storage_path, member = member, DLC_IDs = DLC_IDs)

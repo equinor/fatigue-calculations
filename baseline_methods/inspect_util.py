@@ -10,19 +10,25 @@ if __name__ == '__main__':
     # df = df[ df['util_fraction'].abs() < 5.0] # remove outliers - there are some severe errors related to file reading etc.
     # df = df[ df['util_fraction'].abs() > 0.1] # remove those that are fairly close to only inspect 
     
-    df['util_fraction'] *= 100.0
-    util_far_away = (df['util_fraction']).abs() > 1.10 # over 10% off
+    df = df[['elevation', 'in_out', 'description', 'D', 't', 'curve',
+                 'DEM_hs_MPa', 'Seq', 'scf', 'gritblast', 'Seq_hs', 'L_t', 't_eff',
+                'alpha', 'rule_miner_sum_no_DFF', 'rule_DFF', 'ValType', 'in_place_utilization']]
+    
+    df['rule_utilization'] = df['rule_miner_sum_no_DFF'] * df['rule_DFF'] * 100
+    
+    df = df.drop(['rule_miner_sum_no_DFF', 'rule_DFF'], axis=1)
+    
+    df['util_diff'] = df['rule_utilization'] - df['in_place_utilization']
+    df['util_fraction'] = df['util_diff'] / df['in_place_utilization']
+    df['util_fraction'] *= 100.0 # difference from report value in percentage
+    
+    util_far_away = (df['util_fraction']).abs() > 1.0    
     is_inside = (df['in_out'] == 'I') | (df['in_out'] == 'i')
     is_outside = ~is_inside
-    above_sealevel = df['elevation'] >= 0.0
-    below_sealevel = ~above_sealevel
-
-    submerged = df[below_sealevel]
-    in_air = df[above_sealevel]
-    print(in_air)
-    print(in_air['util_fraction'].mean(), in_air['util_fraction'].std())
-    print(submerged)
-    print(submerged['util_fraction'].mean(), submerged['util_fraction'].std())
     
-    # print(df[ is_inside & util_far_away])
+    # print(df)
+    print(df[ df['util_diff'].abs() > 2.0])
+    print(df)
+    # print(df[ df['util_fraction'].abs() < 10.0])
+    # print(df[is_inside])
     # print(df[ (~is_inside) & util_far_away])
