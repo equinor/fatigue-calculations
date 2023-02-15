@@ -2,8 +2,8 @@ import pandas as pd
 import numpy as np 
 import os 
 
-if __name__ == '__main__':
-    
+   
+def old_stuff():
 
     df = pd.read_excel(fr'{os.getcwd()}\output\DA_P53_CD_rule_vs_report.xlsx')
     
@@ -32,3 +32,19 @@ if __name__ == '__main__':
     # print(df[ df['util_fraction'].abs() < 10.0])
     # print(df[is_inside])
     # print(df[ (~is_inside) & util_far_away])
+
+if __name__ == '__main__':
+    
+    turbine_output_dir  = fr'{os.getcwd()}\output\all_turbines\JLO'
+    all_files = [os.path.join(path, name) for path, subdirs, files in os.walk(turbine_output_dir) for name in files]
+    all_files = [file for file in all_files if 'worst_elevation_comparison' in file]
+    
+    comparison_results = []
+    for file in all_files:
+        res = pd.read_excel(file).iloc[0]
+        print(res)
+        print(res.shape)
+        comparison_results.append( res )
+        
+    df = pd.DataFrame(comparison_results)
+    print(df)

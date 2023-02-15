@@ -3,17 +3,35 @@ import PyPDF2
 import pandas as pd
 import sys
 import copy
-
+import re
+    
+def identify_pages_with_key_word(file_path, key_word, start_page = 40, end_page = 50):
+    # finds page 
+    pages_found = -1
+    pdf_reader = PyPDF2.PdfReader(file_path)
+    end_page = min(len(pdf_reader.pages), end_page)
+    assert start_page < end_page, 'the start pages cannot be after the end page'
+    for i in range(start_page, end_page - 1):
+        text = ''
+        text += pdf_reader.pages[i].extract_text()
+        content = text.encode('ascii', 'ignore').lower().decode("utf-8") 
+        search_result = re.search(key_word, content)
+        if search_result is not None:
+            pages_found = i
+            break
+    
+    return pages_found       
+    
 def get_text_as_lines_from_page(file_path: str, page_no: int, above_str_ID: str, below_str_ID: str, above_idx_is_at_element = False, add_word : str = None):
     # page no is no in document, not as python indexed int
     # note that 
     # TODO allow for info scraped from top sentence and bottom sentence
     
     # Open the PDF file and extract the text from the specified page
+    # page no formatted as PDF-page no, not python 0-indexed
     pdf_reader = PyPDF2.PdfReader(file_path)
     page = pdf_reader.pages[page_no - 1] # 
     text = page.extract_text()
-    
     lines = text.split('\n') # Split the text into lines
     
     above_idx, below_idx = 0, 0
@@ -40,7 +58,6 @@ def get_text_as_lines_from_page(file_path: str, page_no: int, above_str_ID: str,
 def clean_row_elements_with_spaces(row, start_idx):
     # Generalized formula for finding all neighbouring string columns from start_idx, concatenate / join them with string at start_idx, and remove the neighbours afterwards
     end_idx = copy.deepcopy(start_idx)
-    
     while True:
         try: 
             # test to see if we have reached the neighbouring column with a number -> then we know that the strings with spaces has ended
@@ -57,7 +74,6 @@ def clean_row_elements_with_spaces(row, start_idx):
 def add_largest_thickness(lines, lines_corrected, line_idx):
     # TODO improvement - should be handling dicts instead of being very specific in line position
     row = lines_corrected[line_idx]
-    print('--- ',row[0])
     if line_idx == 0:
         thickness_above = row[5] # no thickness above when upper elevation
         thickness_below = lines_corrected[line_idx + 1][5]
@@ -77,30 +93,26 @@ def add_largest_thickness(lines, lines_corrected, line_idx):
         # Check if neighbouring elevations are on the same TP/MP before using neighbouring thicknesses
         if row[24] != row_above[24]:
             thickness_above = row[5]
-            print('above_TP/MP', thickness_above)
         else:
             thickness_above = row_above[5]
-            print('above_OK', thickness_above)
 
         if row[24] != row_below[24]:
             thickness_below = row[5]
-            print('below_TP/MP', thickness_below)
         else:
             thickness_below = row_below[5]    
-            print('below_OK', thickness_below)
     
     return max(row[5], thickness_above, thickness_below) # largest thickness is chosen from neighbours + current elevation
     
-def find_turbine_and_cluster_ID(structural_report_path):
+def find_turbine_and_cluster(structural_report_path):
     
     turbine_name = None
     line = get_text_as_lines_from_page(structural_report_path, page_no = 1, above_str_ID = 'Position', below_str_ID = 'Turbine', above_idx_is_at_element = True)
     assert len(line) == 1, 'Expected only one line matching for the turbine name'
     turbine_name_with_spaces = line[0].split(': ')[1]
-    turbine_name_with_underscore = turbine_name_with_spaces.replace(' ', '_')
+    turbine_name_with_underscore = turbine_name_with_spaces.replace(' ', '_') # for some reason the PDF reader returns underscore as spaces, so must replace that
     turbine_name = turbine_name_with_underscore
     
-    cluster_ID = None
+    cluster = None
     design_position_to_cluster = {'DEEP': 'JLN', 'INT': 'JLO', 'SHA': 'JLP'}
     line = get_text_as_lines_from_page(structural_report_path, page_no = 1, above_str_ID = 'load cluster', below_str_ID = 'MP diameter', above_idx_is_at_element = True)
     assert len(line) == 1, 'Expected only one line matching for the design cluster'
@@ -108,16 +120,18 @@ def find_turbine_and_cluster_ID(structural_report_path):
     
     for key in design_position_to_cluster:
         if key in line:
-            cluster_ID = design_position_to_cluster[key]
+            cluster = design_position_to_cluster[key]
         
-    return turbine_name, cluster_ID    
+    return turbine_name, cluster    
 
-def read_utilization_and_store_geometries(structural_report_path, result_path):
+def read_utilization_and_store_geometries(structural_report_path, result_dir):
     # This is created for reading only the files ending with "{turbine_name} Foundation Structural Design Report.pdf""
+    MP_table_page_no = identify_pages_with_key_word(structural_report_path, 'appendix d') + 1
+    TP_table_page_no = MP_table_page_no + 1
     
-    turbine_name, cluster_ID = find_turbine_and_cluster_ID(structural_report_path)
-    lines = get_text_as_lines_from_page(structural_report_path, page_no = 45, above_str_ID = '[LAT]', below_str_ID = 'Table D.2', add_word = 'TP')
-    lines += get_text_as_lines_from_page(structural_report_path, page_no = 44, above_str_ID = '[LAT]', below_str_ID = 'Table D.1', add_word = 'MP')
+    turbine_name, cluster = find_turbine_and_cluster(structural_report_path)
+    lines = get_text_as_lines_from_page(structural_report_path, page_no = TP_table_page_no, above_str_ID = '[LAT]', below_str_ID = 'Table D.2', add_word = 'TP')
+    lines += get_text_as_lines_from_page(structural_report_path, page_no = MP_table_page_no, above_str_ID = '[LAT]', below_str_ID = 'Table D.1', add_word = 'MP')
     
     cols = ['z-level', 'Side', 'Orientation', 'Description', 'D', 't', 'Duration', 'Curve', 'Insp', 'DFF', 'Nref', 'Meq', 'S_nominal', 'SCF', 'gritblast', 'S_scf', 'tref', 'Lt', 'teff', 'k', 'alpha', 'ValType', 'Dd', 'Dd_tot']
     cols = ['elevation', 'in_out', 'orientation', 'description', 'diameter', 'small_thickness', 'lifetime', 'sn_curve', 'insp', 'DFF', 'Nref', 'Meq', 'S_nominal', 'scf', 'gritblast', 'S_scf', 't_ref', 'largest_weld_length', 't_eff', 'k', 'alpha', 'ValType', 'in_place_utilization', 'Dd_tot', 'MP_TP', 'cluster', 'turbine_name', 'large_thickness']
@@ -145,7 +159,7 @@ def read_utilization_and_store_geometries(structural_report_path, result_path):
         row = clean_row_elements_with_spaces(row, description_start_idx)
         row = clean_row_elements_with_spaces(row, valType_start_idx)
         
-        row.append(cluster_ID) # for member_cluster
+        row.append(cluster) # for member_cluster
         row.append(turbine_name) # for member_cluster
         row.append('0.0') # placeholder for largest thickness - needs to wait until everything is cleaned up first
     
@@ -163,18 +177,20 @@ def read_utilization_and_store_geometries(structural_report_path, result_path):
             dict_df[col].append(line[col_idx])
     
     df = pd.DataFrame(dict_df)
+    result_dir = result_dir + fr'\{cluster}\{turbine_name}'
+    if not os.path.exists(result_dir):
+        os.makedirs(result_dir)
     
-    pd.options.display.max_rows = 100 # Print more rows
-    df.to_excel(result_path.format(cluster_ID) + fr'\{turbine_name}_util_and_geos.xlsx')
+    result_path = result_dir + fr'\utils_and_geos_from_structure_report.xlsx'
+    df.to_excel(result_path)
+    pd.options.display.max_rows = 100 
+    print(f'stored util and geos for {turbine_name}:')
     print(df)
-    print(f'stored util and geos for {turbine_name}')
-    return df
+    return result_path
     
     
 if __name__ == '__main__':
     
-    turbine_name = 'DA_P53_CD'
-    cluster_ID = 'JLO'
     structural_report_path = os.getcwd() + r'\data\structural_specific_reports\P0061-C1224-WP03-REP-002-F - DA_P53_CD Foundation Structural Design Report.pdf'
-    result_path = os.getcwd() + r'\output\all_turbines\{}'
-    df = read_utilization_and_store_geometries(structural_report_path, result_path)
+    result_dir = os.getcwd() + r'\output\all_turbines\{}'
+    df = read_utilization_and_store_geometries(structural_report_path, result_dir)

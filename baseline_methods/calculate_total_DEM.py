@@ -64,7 +64,8 @@ if __name__ == '__main__':
     paths = {'python': (fr'{os.getcwd()}' + r'\output\DEM_DB_JLO_{}.mat'), 
              'matlab': (fr'{os.getcwd()}' + r'\output\fatigue_DB_JLO_{}.mat')} # formatted so that the str DLC_ID can be used in path
     
-    out_path_xlsx = fr'{os.getcwd()}' + r'\output\python_combined_DEM.xlsx'
+    cluster = 'JLO'
+    out_path_xlsx = fr'{os.getcwd()}' + fr'\output\all_turbines\{cluster}\{cluster}_combined_DEM.xlsx'
     
     # Store the worst DEM results in a dict for tabular presentation later on
     res_data = {m: [] for m in methods}
@@ -93,7 +94,7 @@ if __name__ == '__main__':
         if method == 'python':
             df_out = pd.DataFrame(tot_weighted_DEM_all_angles, 
                                   index = [f'{geo_matrix[key]["elevation"]:1f}' for key in geo_matrix.keys()], 
-                                  columns = [f'{a:.1f}' for a in sectors[:]])
+                                  columns = [f'{sector:.1f}' for sector in sectors[:]])
             df_out.to_excel(out_path_xlsx, index_label = 'mLat')
             logger.info(f'Stored the python method results to {out_path_xlsx}')
             

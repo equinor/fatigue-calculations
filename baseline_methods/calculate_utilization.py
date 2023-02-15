@@ -20,41 +20,40 @@ def find_above_below_closest_elevations(df, member_elevations):
     return member_elevations[df['idx_elevation_above']],  member_elevations[df['idx_elevation_below']], member_elevations[df['idx_elevation_closest']]
 
 def return_worst_elevation(df):
-    report_worst_elevation_idx = pd.to_numeric(df['in_place_utilization']).argmax()
-    df_res = df.iloc[report_worst_elevation_idx].copy()   
-    df_res = df_res[ ['elevation', 'in_out', 'description', 'in_place_utilization'] ].copy()
+    # find the elevation that the report evaluates as the one with highest utilization
+    # manipulate dataframe columns to be readable in standalone
+    # Then, compare it to RULe numbers:
+    #   1) compare report value to the rule results at the same elevation
+    #   2) calculate the elevations that the rule method evaluates as the worst wrt utilization
+    # Both these metrics should match the reports'
+    
+    # get the row with the worst elevation according to the report
+    df['in_place_utilization'] = df['in_place_utilization'].astype(float)
+    report_worst_elevation_idx = df['in_place_utilization'].argmax()
+    
+    df_res = df.iloc[[report_worst_elevation_idx]].copy()   
+    df_res = df_res[ ['turbine_name', 'cluster', 'description', 'elevation', 'in_out', 'in_place_utilization'] ].copy()
+    
+    df_res.rename(columns = {'description': 'reported_worst_description',
+                             'elevation'  : 'reported_worst_description',
+                             'in_place_utilization': 'reported_utilization'}, inplace = True)
+    
+    # calculate the rule utilization at this elevation 
     all_rule_utilizations = (df['rule_miner_sum_no_DFF'] * df['rule_DFF'] * 100).copy()
-    df_res['rule_utilization'] = all_rule_utilizations[report_worst_elevation_idx]
+    df_res['rule_util_at_reported_elevation'] = all_rule_utilizations[report_worst_elevation_idx]
+    
+    # find the elevation and utilization that the RULe method believes is the worst (should be the same)
     rule_worst_elevation_idx = all_rule_utilizations.argmax()
+    df_res['rule_worst_description'] = df.iloc[rule_worst_elevation_idx]['description']
     df_res['rule_worst_elevation'] = df.iloc[rule_worst_elevation_idx]['elevation']
     df_res['rule_worst_utilization'] = all_rule_utilizations.iloc[rule_worst_elevation_idx]
+    
     return df_res
 
-def calculate_utilization_single_turbine(sectors, member_path, DEM_data_path, geo_path, member_markov_path, result_path, DFFs: list, store_utils_all_elevations = False):
-    
-    # Define DEM variables
-    wohler_exp = 5.0
-    
-    # Load geometries of interest
-    geometries_of_interest_df = pd.read_excel(geo_path)
-    turbine_name = geometries_of_interest_df.iloc[0]['turbine_name']
-    cluster_ID = geometries_of_interest_df.iloc[0]['cluster_ID']
-    
-    member_geometry = pd.read_excel(member_path.format(cluster_ID))
-    df_DEM_members_xlsx = pd.read_excel(DEM_data_path.format(cluster_ID))
-    
-    member_2_elevation_map = {k: v for k, v in zip(member_geometry[f'member_{cluster_ID}'], member_geometry['elevation'])}
-    
-    # Create geometries with pre-calculated A, I, Z, alpha etc
-    geometries_of_interest = create_geo_matrix(geometries_of_interest_df, sectors)
-    
-    # Calculate the DEM of all member elevations, to be used for interpolation
-    member_elevations = np.array([float(key) for key in (df_DEM_members_xlsx['mLat'].values)])
-    
-    df = pd.DataFrame(pd.DataFrame(geometries_of_interest)).T
-    df = df[df['elevation'] >= member_elevations.min()] # we cannot interpolate locations below the lowest member elevation with available time series
-    n_elevations = df.shape[0]
-    
+def handle_DFFs(DFFs, n_elevations):
+    # the DFF can be given as a list, in order to possible change this at a later stage
+    # DFF list must match the length of elevations used in the design reports   
+     
     if not DFFs: # handles None, 0, empty list 
         print('Encountered empty list / None value - interpreting all DFFs as 3.0')
         DFFs = [3.0] * n_elevations
@@ -67,8 +66,61 @@ def calculate_utilization_single_turbine(sectors, member_path, DEM_data_path, ge
                 DFFs = [3.0] * n_elevations
             except TypeError as err: # DFFS given as something non-subscriptable
                 DFFs = [3.0] * n_elevations
+    
+    return DFFs
+
+def calculate_utilization_single_turbine(util_and_geo_path, 
+                                         member_path,
+                                         DEM_data_path,
+                                         member_markov_path,
+                                         result_path,
+                                         DFFs: list,
+                                         store_all = False,
+                                         turbine_name_and_cluster = None,
+                                         single_cluster = False):
+
+    
+    sectors = [float(i) for i in range(0,359,15)]
+
+    # Define DEM variables
+    wohler_exp = 5.0
+    
+    # Load geometries of interest TODO temp solution for 
+    if util_and_geo_path:
+        if util_and_geo_path.endswith('.xlsx'):
+            geometries_of_interest_df = pd.read_excel(util_and_geo_path)
+        else:
+            if turbine_name_and_cluster:
+                turbine_name, cluster = turbine_name_and_cluster
+                path = util_and_geo_path + fr'\{cluster}\{turbine_name}' + fr'\utils_and_geos_from_structure_report.xlsx'
+                geometries_of_interest_df = pd.read_excel(path)
             
-    # Start adding the various properties
+    turbine_name = geometries_of_interest_df.iloc[0]['turbine_name']
+    cluster = geometries_of_interest_df.iloc[0]['cluster']
+    
+    # TODO temporary before all timeseries' has been processed for the other clusters
+    if single_cluster:
+        if cluster != single_cluster:
+            print(f'{turbine_name} not in single cluster {single_cluster} - skipping')
+            return None
+    
+    member_geometry = pd.read_excel(member_path.format(cluster))
+    df_DEM_members_xlsx = pd.read_excel(DEM_data_path.format(cluster, cluster))
+    
+    member_2_elevation_map = {k: v for k, v in zip(member_geometry[f'member_{cluster}'], member_geometry['elevation'])}
+    
+    # Create geometries with pre-calculated A, I, Z, alpha etc
+    geometries_of_interest = create_geo_matrix(geometries_of_interest_df, sectors)
+    
+    # Calculate the DEM of all member elevations, to be used for interpolation
+    member_elevations = np.array([float(key) for key in (df_DEM_members_xlsx['mLat'].values)])
+    
+    df = pd.DataFrame(pd.DataFrame(geometries_of_interest)).T
+    df = df[df['elevation'] >= member_elevations.min()] # we cannot interpolate locations below the lowest member elevation with available time series
+    
+    DFFs = handle_DFFs(DFFs, df.shape[0])
+   
+    # Find the geo properties, closest member elevations and DEM values, and interpolate 
     df['curve'] = df.apply(lambda row: row['sn_curve'].SN.name, axis=1)
     above, below, close = find_above_below_closest_elevations(df,member_elevations)
     df['elevation_above'] = above
@@ -84,12 +136,15 @@ def calculate_utilization_single_turbine(sectors, member_path, DEM_data_path, ge
     # Choose DEM at the closest sector to the SCF orientation. If omnidirectional => choose the largest DEM at the reference elevation
     df['closest_sector_idx'] = df.apply(lambda row: row['DEM_interpolated'].argmax() if row['orientation'] == None else np.absolute(sectors - row['orientation']).argmin(), axis=1)
     df['ref_orientation'] = df.apply(lambda row: global_2_compass(sectors[row['closest_sector_idx']]), axis=1)
-    df['DEM_hs_MPa'] = df.apply(lambda row: row['DEM_interpolated'][row['closest_sector_idx']] / 1e6, axis=1)    
+    
+    # Find the corresponding DEM at hotspot, and the DEM scaling factor relative to the closest elevation + sector
+    df['DEM_hs_MPa'] = df.apply(lambda row: row['DEM_interpolated'][row['closest_sector_idx']] / 1e6, axis=1)  
+    df['DEM_scaling_factor'] = df.apply(lambda row: row['DEM_interpolated'][row['closest_sector_idx']] / row['DEM_elevation_closest'][row['closest_sector_idx']], axis=1)   
     
     # Gather pre calculated markov matrices from member elevations')
     markov_matrices = {}
     for mbr in member_2_elevation_map.keys():
-        path = member_markov_path.format(mbr)
+        path = member_markov_path.format(cluster, mbr)
         member_elevation = member_2_elevation_map[mbr]
         print(f'loading matrix for {member_elevation}')
         markov_matrices[member_elevation] = np.array(fastio_load(path))
@@ -101,13 +156,12 @@ def calculate_utilization_single_turbine(sectors, member_path, DEM_data_path, ge
     df['markov_reference'] = df.apply(lambda row: markov_matrices[row['elevation_closest']][row['closest_sector_idx']], axis=1)
     
     # NOTE sorting could be beneficial to avoid rounding errors, but takes a lot of time
-    #logger.info('Sorting markov reference by ascending moment range order')
     #df['markov_reference'] = df.apply(lambda row: row['markov_reference'][ row['markov_reference'][:, 0].argsort() ], axis=1) # sort according to ascending moment ranges
 
     # Scale reference markov for hotspot: moment ranges scaled according to the DEM_scf / DEM_elevation_closest factor
-    df['DEM_scaling_factor'] = df.apply(lambda row: row['DEM_interpolated'][row['closest_sector_idx']] / row['DEM_elevation_closest'][row['closest_sector_idx']], axis=1) 
     df['markov_hotspot'] = df.apply(lambda row: np.hstack( (row['markov_reference'][:, [0]] * row['DEM_scaling_factor'], row['markov_reference'][:, [1]])), axis=1)
     
+    print('Calculating stress ranges and damage')
     # Calculate stress
     df['stress_ranges_scaled'] = df.apply(lambda row: row['markov_hotspot'][:, [0]] / row['Z'] * row['scf'] * row['gritblast'] * row['alpha'], axis=1)
     
@@ -125,61 +179,92 @@ def calculate_utilization_single_turbine(sectors, member_path, DEM_data_path, ge
     df['rule_miner_sum_no_DFF'] = df.apply(lambda row: row['sn_curve'].miner_sum(row['stress_cycles_MPa_lifetime']), axis=1)
     df['rule_DFF'] = df.apply(lambda row: DFFs[row.name], axis=1)
     
-    print('Saving out df')
     df = df[['elevation', 'in_out', 'description', 'D', 't', 
              'curve', 'DEM_hs_MPa', 'Seq', 'scf', 'gritblast',
              'Seq_hs', 'L_t', 't_eff', 'alpha', 'rule_miner_sum_no_DFF', 
              'rule_DFF', 'in_place_utilization', 'DEM_scaling_factor',
-             'elevation_closest', 'closest_sector_idx', 'ValType']].copy()
+             'elevation_closest', 'closest_sector_idx', 'ValType', 'turbine_name', 'cluster']].copy()
     
-    if store_utils_all_elevations:
-        df.to_excel(result_path + fr'\{turbine_name}_util_rule_vs_report.xlsx', index = False)
+    result_path = result_path + fr'\{cluster}\{turbine_name}'
+    if not os.path.exists(result_path):
+        os.makedirs(result_path)
+    
+    if store_all:
+        df.to_excel(result_path + fr'\util_rule_vs_report.xlsx', index = False)
         pd.options.display.max_rows = 100 # Print more rows
         print(df)
     
     df_res = return_worst_elevation(df)
-    result_path.format(cluster_ID)
-    
-    if not os.path.exists(result_path):
-        os.makedirs(result_path)
-        
-    df_res.to_excel(result_path + fr'\{turbine_name}_util_comparison.xlsx', index = False)
+    df_res.to_excel(result_path + fr'\util_worst_elevation_comparison.xlsx', index = False)
     
     return df
 
 if __name__ == '__main__':
     
-    structural_file_path = os.getcwd() + r'\data\structural_specific_reports'
-    filenames = next(os.walk(structural_file_path), (None, None, []))[2]
-    filenames = [filename for filename in filenames if 'sl_' not in filename.lower()]
+    logger = setup_custom_logger('main')
+       
+    # extract directory with structure reports
+    structural_file_dir = os.getcwd() + r'\data\structural_specific_reports'
+    structure_file_names = next(os.walk(structural_file_dir), (None, None, []))[2]
     
-    filenames = [os.getcwd() + r'\data\structural_specific_reports\P0061-C1224-WP03-REP-002-F - DA_P53_CD Foundation Structural Design Report.pdf']
+    # ignore the spare "SL" turbines and generate paths to the structure reports
+    structure_file_names = [filename for filename in structure_file_names if 'sl_' not in filename.lower()]
+    structure_file_paths = [structural_file_dir + fr'\{filename}' for filename in structure_file_names]
+    
+    # TODO 
+    # 
+    # STEP 1 - testing entire pipeline with one turbine
+    # structure_file_paths = [os.getcwd() + r'\data\structural_specific_reports\P0061-C1224-WP03-REP-002-F - DA_P53_CD Foundation Structural Design Report.pdf',
+    #                         os.getcwd() + r'\data\structural_specific_reports\P0061-C1224-WP03-REP-002-F - DA_P30_LE Foundation Structural Design Report.pdf']
+    #
+    # STEP 2: select only JLO turbines!
+    # NOTE rejecting other clusters than JLO in utilization script
+    single_cluster = 'JLO'
+    
+    #
+    # STEP 3: create member geometry file for all clusters and preprocess DEM sums for all timeseries
+    #
+    # STEP 4: run script for every DBA turbine
 
-    turbine_names = [filename.split(' ')[2] for filename in filenames]
-    util_result_path = [os.getcwd() + fr'\output\{turbine_name}_util_and_geos.xlsx' for turbine_name in turbine_names]
-    
-    for file_i, file in filenames:
-        _ = read_utilization_and_store_geometries(filenames, util_result_path[file_i])
-    
-    logger = setup_custom_logger('util')
-    sectors = [float(i) for i in range(0,359,15)]
+    turbine_names = [filename.split(' ')[2] for filename in structure_file_names]
+    preprocessed_dir = os.getcwd() + r'\output\all_turbines' # for formatting of cluster
     
     # prepare file paths with formatting for cluster ID and turbine name
-    member_geo_path = fr'{os.getcwd()}\data' +  r'\{}_members.xlsx' # format for cluster_ID
-    DEM_data_path = fr'{os.getcwd()}\output' + r'\{}_combined_DEM.xlsx' # format for cluster_ID
-    result_path = fr'{os.getcwd()}\output\all_turbines' + r'\{}' # format for cluster_ID
-    member_markov_path = fr'{os.getcwd()}\output\total_markov_member' + r'{}.npy' # # format for member_no
-    geo_path = fr'{os.getcwd()}\output' + r'\{}_util_and_geos.xlsx'
-        
-    for i, turbine in enumerate(filenames):
-        logger.info(f'Initiating utilization for turbine {turbine_names[i]}')
-        _ = calculate_utilization_single_turbine(sectors = sectors,
-                                                member_path = member_geo_path,
-                                                DEM_data_path = DEM_data_path,
-                                                geo_path = geo_path, 
-                                                result_path = result_path, 
-                                                member_markov_path = member_markov_path,
-                                                DFFs = [], 
-                                                store_utils_all_elevations = True)
-        logger.info(f'Finished utilization for turbine {turbine_names[i]}')
+    turbine_output_dir  = fr'{os.getcwd()}\output\all_turbines'
+    member_geo_path     = fr'{os.getcwd()}\data' +  r'\{}_member_geos.xlsx' # format for cluster
+    DEM_data_path       = turbine_output_dir + r'\{}\{}_combined_DEM.xlsx' # format for cluster
+    member_markov_path  = turbine_output_dir + r'\{}\total_markov_member{}.npy' # # format for member_no
+    # geo_path          = fr'{os.getcwd()}\output' + r'\{}_util_and_geos.xlsx' # format for turbine_name
+    
+    logger.info('Reading all utils')
+    preprosessed_structure_file_contents_paths = []
+    turbines_and_clusters = []
+    
+    for file_i, filename in enumerate(structure_file_paths):
+        if False:
+            print('Reading', filename.split(' - ')[1])
+            out = read_utilization_and_store_geometries(filename, preprocessed_dir)
+            preprosessed_structure_file_contents_paths.append(out)
+            turbines_and_clusters.append(None)
+    
+        else:
+            preprosessed_structure_file_contents_paths.append(preprocessed_dir)
+            turbines_and_clusters.append( (turbine_names[file_i], single_cluster) )
+    
+    logger.info('Read all structural reports and stored results')
+    
+    logger.info('Initiating utilization results')
+    for i, filename in enumerate(structure_file_paths):
+        logger.info(f'Initiating utilization for {filename.split(" - ")[1].split(" Foundation")[0]}')
+        _ = calculate_utilization_single_turbine(util_and_geo_path  = preprosessed_structure_file_contents_paths[i], 
+                                                 turbine_name_and_cluster = turbines_and_clusters[i],
+                                                 member_path        = member_geo_path,
+                                                 DEM_data_path      = DEM_data_path,
+                                                 result_path        = turbine_output_dir, 
+                                                 member_markov_path = member_markov_path,
+                                                 DFFs               = [], 
+                                                 store_all          = True,
+                                                 single_cluster     = single_cluster)
+        logger.info(f'Ended utilization script for turbine {filename.split(" - ")[1].split(" Foundation")[0]}')
 
+    logger.info('Utilization complete')
