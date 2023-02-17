@@ -4,7 +4,7 @@ import sys
 import json
 from utils.fastnumpyio import save as fastio_save
 
-def calculate_DEM_case_i(binary_file_i, description_file_i, sectors, geo_matrix, rainflow_func, store_cycles, cycle_storage_path):
+def calculate_DEM_case_i(binary_file_i, description_file_i, sectors, geo_matrix, rainflow_func, DEM_correction_factor, store_cycles, cycle_storage_path):
     """
     Calculates in-place Damage Equivalent (bending) Moment of a time series 
     - Reads simulation files from vendor and extracts moment time series in x and y
@@ -18,6 +18,8 @@ def calculate_DEM_case_i(binary_file_i, description_file_i, sectors, geo_matrix,
         sectors (list): angles of relevant sectors, in degrees
         geo_matrix (dict): dictionary containing the various geometry details at different elevations
         rainflow_func (func): a python function for returning (ranges, counts) from a timeseries using rainflow counting
+        DEM_correction_factor (float): a factor for increasing or decreasing the ranges according to details such as prolonged design lifetime due to commissioning/de-commissioning etc.
+        store_cycles (bool): a decider on weather or not cycles shall be stored. Used in RFC of moment ranges in DEM
         cycle_storage_path (str): path to where ranges can be stored if used later
 
     Returns:
@@ -25,7 +27,6 @@ def calculate_DEM_case_i(binary_file_i, description_file_i, sectors, geo_matrix,
         
     TODO use the percentage and wohler exponent as inputs to function?
     """
-    DEM_scale = 1.01 # 1% increase of DEM due to time of tower without NRA during installation before operation, and after operation but before de-commissioning
     m = 5.0 # wohler exponent
     n_rainflow_bins = 128
     
@@ -49,7 +50,7 @@ def calculate_DEM_case_i(binary_file_i, description_file_i, sectors, geo_matrix,
             cycles_sector_j = rainflow_func(moment_timeseries_case_i_sector_j, k = n_rainflow_bins)
             
             # Scale the moment ranges 1% according to reports to account for the period prior to RNA attachment during commissioning and after RNA detachment during decommissioning
-            cycles_sector_j[:, [0]] *= DEM_scale
+            cycles_sector_j[:, [0]] *= DEM_correction_factor
             
             ''' 
             Calculate the sum of ranges and counts ("internal DEM sum") of the point at (geo_idx, sector_idx) by
@@ -67,7 +68,7 @@ def calculate_DEM_case_i(binary_file_i, description_file_i, sectors, geo_matrix,
                 cycles_all_sectors[sector_idx, :, :] = cycles_sector_j
                 
         if store_cycles:
-            path_cycles_at_member = cycle_storage_path.format(geo_dict['member_JLO'])
+            path_cycles_at_member = cycle_storage_path.format(geo_dict['member_id'])
             fastio_save(path_cycles_at_member, cycles_all_sectors)
     
     return DEM_sum # (n_geo, n_angles) shaped array

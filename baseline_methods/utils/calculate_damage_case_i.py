@@ -2,7 +2,7 @@ import numpy as np
 from utils.read_simulation_file import read_bladed_file
 import sys
 
-def calculate_damage_case_i(binary_file_i, description_file_i, sectors, geo_matrix, rainflow_func, store_cycles, cycle_storage_path):
+def calculate_damage_case_i(binary_file_i, description_file_i, sectors, geo_matrix, rainflow_func, DEM_correction_factor, store_cycles, cycle_storage_path):
     """
     Calculates in-place damage of a turbine geometry for a single DLC case
     NOTE This script can only calculate damage for a geometry / elevation that is a member from the result simulations
@@ -17,6 +17,7 @@ def calculate_damage_case_i(binary_file_i, description_file_i, sectors, geo_matr
         sectors (list): angles of relevant sectors, in degrees
         geo_matrix (dict): dictionary containing the various geometry details at different elevations
         rainflow_func (func): a python function for returning (ranges, counts) from a timeseries using rainflow counting
+        DEM_correction_factor (float): a factor for increasing or decreasing the ranges according to details such as prolonged design lifetime due to commissioning/de-commissioning etc.
         store_cycles (bool): a decider on weather or not cycles shall be stored. Used in RFC of moment ranges in DEM
         cycle_storage_path (str): path to where ranges can be stored if used later. Used in RFC of moment ranges in DEM
 
@@ -48,11 +49,11 @@ def calculate_damage_case_i(binary_file_i, description_file_i, sectors, geo_matr
         stress_timeseries_case_i *= geo_dict['alpha'] * 1e-6 # [MPa]
         
         curve = geo_dict['sn_curve']
-        # def calculate_damage_case_i(stress_timeseries_case_i, curve, rainflow_func):
         for ang_idx, stress_timeseries_case_i_ang_j in enumerate(stress_timeseries_case_i):
             
             # stress_cycles comes as (N_stress_ranges, n_counts) sized matrix
-            stress_cycles = rainflow_func(stress_timeseries_case_i_ang_j, k = 128)   
+            stress_cycles = rainflow_func(stress_timeseries_case_i_ang_j, k = 128)
+            stress_cycles[:, [0]] *= DEM_correction_factor # scale ranges according to the additional time outside the production design lifetime
             damage[geo_idx, ang_idx] = curve.miner_sum(stress_cycles)
             
     return damage # (n_geo, n_angles) shaped array

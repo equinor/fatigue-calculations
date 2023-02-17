@@ -30,8 +30,6 @@ def old_stuff():
     print(df[ df['util_diff'].abs() > 2.0])
     print(df)
     # print(df[ df['util_fraction'].abs() < 10.0])
-    # print(df[is_inside])
-    # print(df[ (~is_inside) & util_far_away])
 
 if __name__ == '__main__':
     

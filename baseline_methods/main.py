@@ -26,6 +26,16 @@ Code improvement TODO
 - Create a wrapper for argparse to clean the command line input-handling
 '''
 
+def calculate_hourly_results_from_member_timeseries(damage_or_DEM = 'DEM'):
+    
+    
+    
+    return None
+
+def calculate_DEM():
+    _ = calculate_hourly_results_from_member_timeseries('DEM')
+    return None
+
 if __name__ == '__main__':
         
     parser = argparse.ArgumentParser()
@@ -33,10 +43,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     # Get relevant data_paths for DLC and simulation result files  
+    cluster = 'JLO'
     data_path              = fr'{os.getcwd()}\data'
-    DLC_file               = data_path +  r'\Doc-0081164-HAL-X-13MW-DGB-A-OWF-Detailed DLC List-Fatigue Support Structure Load Assessment_Rev7.0.xlsx'
-    sim_res_cluster_folder = data_path +  r'\Doc-0089427-HAL-X-13MW DB-A OWF-ILA3_JLO-model_fatigue_timeseries_all_elevations'
-    geometry_file_members  = data_path +  r'\DA_P53_CD_members.xlsx'
+    DLC_file               = data_path +  fr'\Doc-0081164-HAL-X-13MW-DGB-A-OWF-Detailed DLC List-Fatigue Support Structure Load Assessment_Rev7.0.xlsx'
+    sim_res_cluster_folder = data_path +  fr'\Doc-0089427-HAL-X-13MW DB-A OWF-ILA3_{cluster}-model_fatigue_timeseries_all_elevations'
+    geometry_file_members  = data_path +  fr'\{cluster}_member_geos.xlsx'
     
     ###
     ### -!-!-!-!- NOTE CONFIG VARIABLES START
@@ -55,8 +66,9 @@ if __name__ == '__main__':
     ### -!-!-!-!- NOTE CONFIG VARIABLES END
     ###
     
+    DEM_correction_factor = 1.01
     n_geometries  = geometry.shape[0]
-    cluster_ID    = 'JLO'
+    cluster    = 'JLO'
     out_file_type = 'mat' # or npy 
     logger        = setup_custom_logger('Main') # logger.info('Message') and logger.error('Message')
     rainflow_func = get_range_and_count_qats
@@ -66,17 +78,23 @@ if __name__ == '__main__':
     TEN_MIN_TO_HR = 6.0 # to go from damage or DEM "per 10 min" to "per hr" 
 
     elevations = [f'{geo_matrix[i]["elevation"]} mLAT' for i in range(len(geo_matrix))]
-    logger.info(f'Initiating {info_str} calculation for the {cluster_ID} cluster,\n\
+    logger.info(f'Initiating {info_str} calculation for the {cluster} cluster,\n\
                 DLCs {DLC_IDs}\n\
                 Multiprocessed = {MULTIPROCESS}, {len(sectors)} sectors, \n\
                 {n_geometries} elevations: {elevations} \n')
     
-    for DLC_ID in DLC_IDs:
+    out_dir = fr'{os.getcwd()}\output'
+    cycles_out_dir = out_dir + fr'\markov\{cluster}'
+    if not os.path.exists(cycles_out_dir):
+        os.makedirs(cycles_out_dir)
+    
+    for DLC in DLC_IDs:
         # Collect relevant DLC data, find the probabilities of occurence of each case and the number of cases
-        df, probs, n_cases, _ = extract_and_preprocess_data(DLC_file, DLC_ID, cluster_ID, sim_res_cluster_folder)
-        output_file_name      = fr'{os.getcwd()}\output' + fr'\{info_str}_DB_{cluster_ID}_{DLC_ID}.{out_file_type}'
+        df, probs, n_cases, _ = extract_and_preprocess_data(DLC_file, DLC, cluster, sim_res_cluster_folder)
+        output_file_name      = out_dir + fr'\{info_str}_DB_{cluster}_{DLC}.{out_file_type}'
+        cycle_storage_path    = cycles_out_dir + fr'\DB_{cluster}_{DLC}' + '_member{}'
+        
         summary_table_DLC_i   = np.zeros((n_cases, n_geometries, len(sectors))) # pre-allocate output matrix of the current DLC
-        cycle_storage_path    = fr'{os.getcwd()}\output\markov' + fr'\DB_{cluster_ID}_{DLC_ID}' + '_member{}'
         
         # Prepare the calculation function arguments which can be passed to any function, either multiprocessed or not
         arguments = [(df.results_files[i], 
@@ -84,11 +102,12 @@ if __name__ == '__main__':
                       sectors, 
                       geo_matrix, 
                       rainflow_func,
+                      DEM_correction_factor,
                       store_cycles,
                       cycle_storage_path + f'_case{i}.npy'
                      ) for i in range(n_cases)]
         
-        logger.info(f'Starting {info_str} calculation on {DLC_ID} with {n_cases} cases')
+        logger.info(f'Starting {info_str} calculation on {DLC} with {n_cases} cases')
         
         if MULTIPROCESS:
             with Pool() as p: # loop all cases multiprocessed across available CPUs 
@@ -99,7 +118,7 @@ if __name__ == '__main__':
             for case_i in range(n_cases):
                 summary_table_DLC_i[[case_i], :, :] = calc_func(*arguments[case_i])
                 
-        logger.info(f'Finished calculating {info_str} - initiating aggregating calculation and file storage')
+        logger.info(f'Finished calculating {info_str} - initiating probability weighting and file storage')
         
         # Transform the summary table into a combined damage / DEM matrix of size (n_geometries, n_angles), 
         # weighting each of the cases by their probabilities, and converting to hour-based damage according to "TEN_MIN_TO_HR"
@@ -110,6 +129,6 @@ if __name__ == '__main__':
         
         # Now save the results for later usage     
         store_table(summary_table_DLC_i, weighted_table_DLC_i, weights, output_file_name, identifier = info_str) # Stores as .mat or .npy binary file
-        logger.info(f'Stored {info_str} table for {DLC_ID} \n')
+        logger.info(f'Stored {info_str} table for {DLC} \n')
         
     logger.info(f'Main calculation script finished')

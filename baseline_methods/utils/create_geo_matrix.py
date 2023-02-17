@@ -74,14 +74,14 @@ def create_geo_matrix(geometry, sectors):
         
         try:
             # If the geometry is a member, it also has a column where the moments and forces are defined
-            out_df[geo_idx]['member_JLO'] = geo_row['member_JLO']
+            out_df[geo_idx]['member_id'] = geo_row['member_id']
             out_df[geo_idx]['mx_col']     = geo_row['mx_col']
             out_df[geo_idx]['my_col']     = geo_row['my_col']
             out_df[geo_idx]['fz_col']     = geo_row['fz_col']
             
         except KeyError as err:
             # print(f'Caught Key Error: {err} - setting member column as None and counts this as non-member node')
-            out_df[geo_idx]['member_JLO'] = None
+            out_df[geo_idx]['member_id'] = None
             out_df[geo_idx]['mx_col']     = None
             out_df[geo_idx]['my_col']     = None
             out_df[geo_idx]['fz_col']     = None

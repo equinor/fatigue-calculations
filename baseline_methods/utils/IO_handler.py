@@ -21,6 +21,7 @@ def store_table(table, combined_table, weights, output_file_name, identifier = '
     
     if output_file_name.split('.')[-1] == 'npy':    
         # TODO alternative check is output_file_name.endswith('.npy')
+        # TODO fastnumpyio.py contains methods where save and load is sped up - to be considered if these functions becomes bottlenecks. As of Feb 2023, they are not.
         with open(output_file_name, 'wb') as f:
             np.save(f, table)
     
@@ -67,11 +68,8 @@ def load_table(file_name, identifier = 'damage', method = 'python'):
             
         else:
             print('No recognizable filetype - no table loaded')
-            return None
+            return np.empty((1,1,)) * np.nan
         
     else:
         print('Not a recognized method')
-        
-        
-def store_to_results_file(output_file_name, identifier = 'damage', method = 'python'):
-    pass
+        return np.empty((1,1,)) * np.nan
