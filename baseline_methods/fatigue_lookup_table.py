@@ -8,7 +8,7 @@ import pandas as pd
 import sys
 import os
 from multiprocessing import Pool
-from markov_parser import get_markov_files_paths
+from parse_markov_matrices import get_markov_files_paths
 
 '''
 Script for calculating lifetime of a turbine's most dimensioning sector damage
@@ -22,14 +22,18 @@ wohler_exp   = 5.0
 data_path    = fr'{os.getcwd()}\data'
 DLC_file     = data_path +  r'\Doc-0081164-HAL-X-13MW-DGB-A-OWF-Detailed DLC List-Fatigue Support Structure Load Assessment_Rev7.0.xlsx'
 
-def calculate_damage_scaled_by_DEM_case_i(moment_cycles_path_case_i, DEM_scaling_factor, cross_section, DFF = 3.0):
+def calculate_unweighted_damage_case_i(moment_cycles_closest_member_case_i_path, 
+                                       DEM_scaling_factor_from_closest_member, 
+                                       cross_section, 
+                                       DFF = 3.0):
+    
     # input: path to closest member's markov matrices for a case, and the corresponding scaling factor to be applied on the moment ranges
     
     # moment_cycles: (n_sectors, n_cycles, 2) array of all moment_cycles for all sectors of a given elevation's cross-section
-    moment_cycles = np.array(fastio_load(moment_cycles_path_case_i))
+    moment_cycles = np.array(fastio_load(moment_cycles_closest_member_case_i_path))
 
     # nominal stress range for all sectors, corresponding to all n_cycles cycles
-    moment_ranges = moment_cycles[:, :, 0] * DEM_scaling_factor # reduced to shape (n_sectors, n_cycles)
+    moment_ranges = moment_cycles[:, :, 0] * DEM_scaling_factor_from_closest_member# reduced to shape (n_sectors, n_cycles)
     nominal_stress_ranges = moment_ranges / cross_section['Z'] 
     
     # Adjust the stress according the stress concentration factors for certain angles
@@ -38,7 +42,7 @@ def calculate_damage_scaled_by_DEM_case_i(moment_cycles_path_case_i, DEM_scaling
     stress_ranges *= cross_section['alpha']  # elementwise thickness scaling
     
     # Put together the stress cycles for use in the miner summation
-    stress_cycles = np.dstack( (stress_ranges * 1e-6, moment_cycles[:, :, 1])) # stack along third axis / in _D_epth
+    stress_cycles = np.dstack( (stress_ranges * 1e-6, moment_cycles[:, :, 1])) # stack along third axis / in _D_epth => _D_stack
     
     n_sectors = stress_ranges.shape[0]
     damage = np.zeros(n_sectors)
@@ -47,7 +51,7 @@ def calculate_damage_scaled_by_DEM_case_i(moment_cycles_path_case_i, DEM_scaling
         
     return damage # (n_sectors, ) shaped array
 
-def calculate_damage_from_DEM_scale(logger, sectors, cluster_ID, DLC_file_path):
+def calculate_damage_from_DEM_scale(logger, sectors, cluster, turbine_name, DLC_file_path):
     logger.info('Calculating scaled damage')
     # we must backtrack the final DEM calculations to 10-min scenarios for each DLC, unweighted
     
@@ -58,32 +62,35 @@ def calculate_damage_from_DEM_scale(logger, sectors, cluster_ID, DLC_file_path):
     geometries_of_interest_df['largest_weld_length'] = geometries_of_interest_df['largest_weld_length'].fillna(70)
     geometries_of_interest_cross_sections = create_geo_matrix(geometries_of_interest_df, sectors)
     
-    util_df = pd.read_excel(fr'{os.getcwd()}\output\DA_P53_CD_rule_vs_report.xlsx')
-    idx_for_worst_elevation = util_df['in_place_utilization'].argmax()
-    worst_elevation_cross_section = geometries_of_interest_cross_sections[util_df['in_place_utilization'].argmax()]
     
-    worst_elevation_df = util_df.iloc[ idx_for_worst_elevation ]
+    # util_df = pd.read_excel(fr'{os.getcwd()}\output\DA_P53_CD_rule_vs_report.xlsx')
+    util_df = pd.read_excel(fr'{os.getcwd()}\output\all_turbines\{cluster}\{turbine_name}_rule_vs_report.xlsx')
+    
+    idx_for_worst_elevation = util_df['in_place_utilization'].argmax() # TODO must convert to numeric to use argmax?
+    cross_section_at_worst_elevation = geometries_of_interest_cross_sections[idx_for_worst_elevation] 
+    worst_elevation_df = util_df.iloc[ idx_for_worst_elevation ] # TODO keep dimensionality by using double brackets when iloc'ing? => [[]]
     closest_member_no  = worst_elevation_df['member_closest']
     DEM_scaling_factor = worst_elevation_df['DEM_scaling_factor']
         
     out_dfs = []
-    for DLC_ID in DLC_IDs:
-        logger.info(f'DLC {DLC_ID} - start')
+    for DLC in DLC_IDs:
+        logger.info(f'DLC {DLC} - start')
         
         # Calculate unweighted, 10-min damage from the scaled ranges for the worst elevation for every individual DLC
-        DLC_file_df = pd.read_excel(DLC_file_path, sheet_name = DLC_ID)
+        DLC_file_df = pd.read_excel(DLC_file_path, sheet_name = DLC)
         n_cases = DLC_file_df.shape[0]
         probs = list(DLC_file_df['Tot_Prob_in_10_percent_idling_scenario_hr_year'])
         
-        file_paths_DLC_i = get_markov_files_paths(cycle_storage_path = fr'{os.getcwd()}\output\markov', identifier = fr'DB_{cluster_ID}_{DLC_ID}_member{closest_member_no}')
-        args = [(file_paths_DLC_i[case_i], DEM_scaling_factor, worst_elevation_cross_section) for case_i in range(n_cases)]
+        file_paths_DLC_i = get_markov_files_paths(cycle_storage_path = fr'{os.getcwd()}\output\markov', identifier = fr'DB_{cluster}_{DLC}cycles_member{closest_member_no}')
+        DFF = 3.0
+        args = [(file_paths_DLC_i[case_i], DEM_scaling_factor, cross_section_at_worst_elevation, DFF) for case_i in range(n_cases)]
         
         with Pool() as pool:
-            damages_per_case = np.array( pool.starmap(calculate_damage_scaled_by_DEM_case_i, args) )
+            damages_per_case = np.array( pool.starmap(calculate_unweighted_damage_case_i, args) )
         
-        out_dfs.append(create_fatigue_table_DLC_i(damages_per_case, DLC_ID, probs))
+        out_dfs.append(create_fatigue_table_DLC_i(damages_per_case, DLC, probs))
 
-        logger.info(f'DLC {DLC_ID} - end')
+        logger.info(f'DLC {DLC} - end')
     
     overall_fatigue_table = pd.concat(out_dfs, axis = 0) 
     return overall_fatigue_table 
@@ -92,11 +99,12 @@ if __name__ == '__main__':
     
     logger = setup_custom_logger('main')
     sectors = [float(i) for i in range(0, 359, 15)]
-    cluster_ID = 'JLO'
+    cluster = 'JLO'
+    turbine_name = 'DA_P53_CD'
     DLC_file_path = fr'{os.getcwd()}\data' + r'\Doc-0081164-HAL-X-13MW-DGB-A-OWF-Detailed DLC List-Fatigue Support Structure Load Assessment_Rev7.0.xlsx'
 
-    overall_fatigue_table = calculate_damage_from_DEM_scale(logger, sectors, cluster_ID, DLC_file_path)
-    overall_fatigue_table.to_excel(fr'{os.getcwd()}\output\lookup_table_DA_P53_CD.xlsx')
+    overall_fatigue_table = calculate_damage_from_DEM_scale(logger, sectors, cluster, turbine_name, DLC_file_path)
+    overall_fatigue_table.to_excel(fr'{os.getcwd()}\output\all_turbines\{cluster}\{turbine_name}\lookup_table.xlsx')
     
     # Future: use that damage to re-calculate lifetimes
 

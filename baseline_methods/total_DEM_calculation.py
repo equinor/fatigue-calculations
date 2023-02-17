@@ -31,113 +31,9 @@ The calculation is done by extracting stored tables of "internal DEM sums" from 
             - T_lifetime: no. of years the equivalent moment is calculated over
             - N_eq; the number of counts / year the equivalent load is calculated over 
 '''
-   
-if __name__ == '__main__':
-    
-    ###
-    ### Initialize variables and collect data files
-    ###
-    DLC_IDs = ['DLC12', 'DLC24a',  'DLC31', 'DLC41a', 'DLC41b', 'DLC64a', 'DLC64b']
-    
-    logger = setup_custom_logger('Main') # logger.info('Message') and logger.error('Message')
-    logger.info(f'Calculating total DEM from {len(DLC_IDs)} DLCs')
-
-    sectors  = [float(i) for i in range(0,359,15)]
-    compass_angles = global_2_compass(sectors)
-    DFF           = 3.0
-    T_lifetime    = 25.0
-    N_equivalent  = 10.0**7
-    wohler_exp    = 5.0
-    data_path     = fr'{os.getcwd()}\data'
-    member_geometry_file = data_path +  r'\DA_P53_CD_members.xlsx'
-    member_geometry = pd.read_excel(member_geometry_file) # .drop(geo_2_drop, axis=0)
-    geo_matrix    = create_geo_matrix(member_geometry, sectors) # better matrix to pass to the main function
-
-    ONLY_STORE = True 
-    
-    ###
-    ### Compute DEM and damage
-    ###
-        
-    # Compare python and matlab implementations. Python and matlab uses two different conventions on file storage naming 
-    methods = ['python']#'matlab', ] 
-    paths = {'python': (fr'{os.getcwd()}' + r'\output\DEM_DB_JLO_{}.mat'), 
-             'matlab': (fr'{os.getcwd()}' + r'\output\fatigue_DB_JLO_{}.mat')} # formatted so that the str DLC_ID can be used in path
-    
-    cluster = 'JLO'
-    out_path_xlsx = fr'{os.getcwd()}' + fr'\output\all_turbines\{cluster}\{cluster}_combined_DEM.xlsx'
-    
-    # Store the worst DEM results in a dict for tabular presentation later on
-    res_data = {m: [] for m in methods}
-    df_row_labels = []
-    for method_idx, method in enumerate(methods):  
-        tot_weighted_DEM_all_angles = []
-        
-        for DLC_ID in DLC_IDs:
-            '''
-            Extract all precalculated internal DEM sums from each DLC, and cumulatively concatenate them together 
-            -> DEM_sum_table.shape = (n_cases, n_geo, n_angles): All internal DEM sums
-            -> weighted_DEM_sum_DLC_i.shape = (n_geo, n_angles): All internal DEM sums already weighted by probability of each DEM-series to occur from each case, and multiplied by a factor to get it into weighted DEM / year
-            -> weights.shape = (n_cases,): All case probabilities in hr/yr
-            '''
-            path = paths[method].format(DLC_ID)
-            DEM_sum_table, weighted_DEM_sum_DLC_i, weights = load_table(path, identifier = 'DEM', method = method)
-            
-            if len(tot_weighted_DEM_all_angles) == 0:
-                # Initialize matrix first time we see the size of relevant extracted table
-                tot_weighted_DEM_all_angles = np.zeros_like(weighted_DEM_sum_DLC_i)
-            
-            tot_weighted_DEM_all_angles += weighted_DEM_sum_DLC_i
-        
-        logger.info(f'Added all the weighted DEM sums together for all DLCs')
-        # When DEM-sums from all DLCs  has been looped through    
-        if method == 'python':
-            df_out = pd.DataFrame(tot_weighted_DEM_all_angles, 
-                                  index = [f'{geo_matrix[key]["elevation"]:1f}' for key in geo_matrix.keys()], 
-                                  columns = [f'{sector:.1f}' for sector in sectors[:]])
-            df_out.to_excel(out_path_xlsx, index_label = 'mLat')
-            logger.info(f'Stored the python method results to {out_path_xlsx}')
-            
-            # if ONLY_STORE:
-            #     logger.info(f'ONLY_STORE param was set to True: quitting script now that dem results has been stored')
-            #     sys.exit()
-     
-        for geo_idx, geo_row in enumerate(tot_weighted_DEM_all_angles):
-            '''
-            NOTE: the geo_idx is not mapped to the DataFrame indexes if dropping some geometries
-            NOTE 06.02.23 - this script is not being used for precise calculations, so it is not relevant to update
-            
-            E.g, solution can be as below, but suspect that the "idx" must be rescaled in the geometry df
-            for geo_idx in range(geometry.shape[0]): 
-                geo_row = geometry.iloc[geo_idx]
-                
-                actual_angles_geo_i = geo_row['actual_angles']
-                compass_angles_geo_i = global_2_compass(actual_angles_geo_i)
-            '''
-            
-            actual_angles_geo_i = sectors[:]
-            compass_angles_geo_i = compass_angles[:]
-            DEM_geo_i_all_angles = tot_weighted_DEM_all_angles[geo_idx]
-            DEM_max = (T_lifetime / N_equivalent * DEM_geo_i_all_angles.max() )**(1 / wohler_exp)
-            
-            res_data[method].append(DEM_max / 10**6)
-            el = geo_matrix[geo_idx]['elevation']
-            
-            if method_idx == 0:
-                df_row_labels.append(f'Elevation {el:.2f} mLat')
-            
-    # Add values from the c2wind final result verification, and print the 
-    res_data['c2wind'] = [88.92, 98.21, 102.18, 104.06, 109.26, 119.25, 137.39, 145.99]
-    vals = np.array(list(res_data.values())).T
-    df = pd.DataFrame(vals, index = df_row_labels, columns = [f'DEM {m} [MNm]' for m in res_data.keys()])  
-    logger.info(f'Comparison of largest DEM found at each elevation per method') 
-    with pd.option_context('display.precision', 2):
-        print(df)
-    sys.exit()
-    
-    # TODO this is just because the python method is the last one in the methods list
-    
-    
+ 
+def oldStuff():
+    '''
     logger.info(f'Finding overall max DEM of worst geo/elevation for the python method')
     # TODO here information about the SCF and specific angles needs to be used -> all angles must be evaluated!
     # The code below is not valid
@@ -156,7 +52,6 @@ if __name__ == '__main__':
     print(f'Elevation {mLAT_at_worst_elevation:.2f} mLAT')
     print(f'Max DEM = {worst_overall_DEM / 10**6:.2f} MNm at {actual_angles_worst_el[worst_overall_sector_idx]} deg / {compass_angles_worst_el[DEM_geo_i_all_angles.argmax()]:.0f} degN')
 
-    sys.exit()
     # NOTE Code below is not relevant for this script since we do not have utilization data for the members we have time series data for  
     curve = SN_Curve_qats('D-air')
 
@@ -174,6 +69,7 @@ if __name__ == '__main__':
     # print(f'Expected lifetime T_lifetime / D\t{1 / dmg * T_lifetime:.2f} years') # Damage has here during "equivalent"-methods been calculated on a 25-year basis. Therefore it must be multiplied to be absolute damage
 
     logger.info(f'Total DEM calculation script finished')
+    '''
     
     '''
     Some notes
@@ -206,4 +102,59 @@ if __name__ == '__main__':
     Selected a = a2 in qats which corresponds to the wohler exp m = 5.0 => loga2 = 15.606 => a2 = 10 ** loga2
     qats curves stores a2 directly
     '''
+    return None
+
+
+def calculate_total_DEM_sum_cluster_i(cluster, logger):
+    DLC_IDs = ['DLC12', 'DLC24a',  'DLC31', 'DLC41a', 'DLC41b', 'DLC64a', 'DLC64b']
+
+    sectors         = [float(i) for i in range(0,359,15)]
+    data_path       = fr'{os.getcwd()}\data'
+    mbr_geo_path    = data_path +  fr'\{cluster}_member_geos.xlsx'
+    member_geometry = pd.read_excel(mbr_geo_path) # .drop(geo_2_drop, axis=0)
+    geo_matrix      = create_geo_matrix(member_geometry, sectors) # better matrix to pass to the main function
+
+    DEM_sum_paths_placeholder = fr'{os.getcwd()}\output\all_turbines\{cluster}\DB_{cluster}_' + r'{}_DEM.mat' # TODO check DEM_sum_paths_placeholder placeholder for DLC ID
+    out_path_xlsx = fr'\output\all_turbines\{cluster}\{cluster}_combined_DEM.xlsx'
     
+    # Store the worst DEM results in a dict for tabular presentation later on
+    logger.info(f'Calculating total DEM from {len(DLC_IDs)} DLCs')
+    tot_weighted_DEM_all_angles = []
+    for DLC in DLC_IDs:
+        '''
+        Extract all precalculated internal DEM sums from each DLC, and cumulatively concatenate them together 
+        -> DEM_sum_table.shape = (n_cases, n_geo, n_angles): All internal DEM sums
+        -> weighted_DEM_sum_DLC_i.shape = (n_geo, n_angles): All internal DEM sums already weighted by probability of each DEM-series to occur from each case, and multiplied by a factor to get it into weighted DEM / year
+        -> weights.shape = (n_cases,): All case probabilities in hr/yr
+        '''
+        _, weighted_DEM_sum_DLC_i, _ = load_table(DEM_sum_paths_placeholder.format(DLC), identifier = 'DEM', method = 'python')
+        
+        if len(tot_weighted_DEM_all_angles) == 0:
+            # Initialize matrix first time we see the size of relevant extracted table
+            tot_weighted_DEM_all_angles = np.zeros_like(weighted_DEM_sum_DLC_i)
+        
+        tot_weighted_DEM_all_angles += weighted_DEM_sum_DLC_i
+        logger.info(f'Added DEM sum from DLC {DLC}')
+    
+    logger.info(f'Added all the weighted DEM sums together for all DLCs')
+    df_out = pd.DataFrame(tot_weighted_DEM_all_angles, 
+                          index     = [f'{geo_matrix[key]["elevation"]:1f}' for key in geo_matrix.keys()], 
+                          columns   = [f'{sector:.1f}' for sector in sectors[:]])
+    
+    df_out.to_excel(fr'{os.getcwd()}' + out_path_xlsx, index_label = 'mLat')
+    logger.info(f'Stored the weighted DEM sums pr hr, all DLCs summed together, to {out_path_xlsx}')
+
+    return None
+
+def sum_up_all_DEM_sums():
+    logger = setup_custom_logger('total_DEM_sum') # logger.info('Message') and logger.error('Message')
+    clusters = ['JLN', 'JLO', 'JLP']
+    for cluster in clusters:
+        logger.info(f'Summing up DEM sums for cluster {cluster}')
+        _ = calculate_total_DEM_sum_cluster_i(cluster, logger)
+        
+    return None
+
+if __name__ == '__main__':
+    
+    _ = sum_up_all_DEM_sums()

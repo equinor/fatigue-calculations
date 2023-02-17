@@ -108,9 +108,10 @@ def find_turbine_and_cluster(structural_report_path):
     turbine_name = None
     line = get_text_as_lines_from_page(structural_report_path, page_no = 1, above_str_ID = 'Position', below_str_ID = 'Turbine', above_idx_is_at_element = True)
     assert len(line) == 1, 'Expected only one line matching for the turbine name'
+    # for some reason the PDF reader returns underscore as spaces or just no space at all, so this must be a bit manual
     turbine_name_with_spaces = line[0].split(': ')[1]
-    turbine_name_with_underscore = turbine_name_with_spaces.replace(' ', '_') # for some reason the PDF reader returns underscore as spaces, so must replace that
-    turbine_name = turbine_name_with_underscore
+    turbine_name_without_spaces = turbine_name_with_spaces.replace(' ', '')
+    turbine_name = '_'.join( (turbine_name_without_spaces[0:2], turbine_name_without_spaces[2:5], turbine_name_without_spaces[5:7]) )
     
     cluster = None
     design_position_to_cluster = {'DEEP': 'JLN', 'INT': 'JLO', 'SHA': 'JLP'}
@@ -124,7 +125,7 @@ def find_turbine_and_cluster(structural_report_path):
         
     return turbine_name, cluster    
 
-def read_utilization_and_store_geometries(structural_report_path, result_dir):
+def read_utilization_and_store_geometries(structural_report_path, result_dir, STORE = True):
     # This is created for reading only the files ending with "{turbine_name} Foundation Structural Design Report.pdf""
     MP_table_page_no = identify_pages_with_key_word(structural_report_path, 'appendix d') + 1
     TP_table_page_no = MP_table_page_no + 1
@@ -182,15 +183,16 @@ def read_utilization_and_store_geometries(structural_report_path, result_dir):
         os.makedirs(result_dir)
     
     result_path = result_dir + fr'\utils_and_geos_from_structure_report.xlsx'
-    df.to_excel(result_path)
+    if STORE:
+        df.to_excel(result_path)
+        print(f'stored util and geos for {turbine_name}:')
+        
     pd.options.display.max_rows = 100 
-    print(f'stored util and geos for {turbine_name}:')
     print(df)
     return result_path
     
-    
 if __name__ == '__main__':
     
-    structural_report_path = os.getcwd() + r'\data\structural_specific_reports\P0061-C1224-WP03-REP-002-F - DA_P53_CD Foundation Structural Design Report.pdf'
-    result_dir = os.getcwd() + r'\output\all_turbines\{}'
-    df = read_utilization_and_store_geometries(structural_report_path, result_dir)
+    structural_report_path = os.getcwd() + r'\data\structural_specific_reports\P0061-C1224-WP03-REP-002-F - DA_J01_JC Foundation Structural Design Report.pdf'
+    result_dir = os.getcwd() + r'\output\all_turbines'
+    path = read_utilization_and_store_geometries(structural_report_path, result_dir, STORE = False)
