@@ -70,13 +70,12 @@ def handle_DFFs(DFFs, n_elevations):
 def calculate_utilization_single_turbine(util_and_geo_path, 
                                          member_path,
                                          DEM_data_path,
-                                         member_markov_path,
                                          result_path,
+                                         member_markov_path,
                                          logger,
                                          DFFs: list,
                                          single_cluster = False):
 
-    
     sectors = [float(i) for i in range(0,359,15)]
 
     # Define DEM variables
@@ -136,7 +135,7 @@ def calculate_utilization_single_turbine(util_and_geo_path,
     for mbr in member_2_elevation_map.keys():
         path = member_markov_path.format(cluster, mbr)
         member_elevation = member_2_elevation_map[mbr]
-        print(f'loading matrix for {member_elevation}')
+        print(f'Loading matrix for {cluster} member {mbr} @ {member_elevation} mLat')
         markov_matrices[member_elevation] = np.array(fastio_load(path))
     
     # Calculate utilization for all other elevations
@@ -219,27 +218,18 @@ def calculate_utilization_all_turbines( structure_file_paths,
                                         preprosessed_structure_file_contents_paths, 
                                         member_geo_path,
                                         DEM_data_path,
-                                        turbine_output_dir, 
+                                        turbine_result_dir, 
                                         member_markov_path,
                                         logger,
                                         DFFs = [], 
                                         single_cluster = False):
     
-    multiprocess = False
-    # TODO mutliprocessed get access denied when trying to access the markov matrices
-    
-    '''
-    File "C:\Appl\TDI\fatigue-calculations\baseline_methods\calculate_utilization.py", line 141, in calculate_utilization_single_turbine
-        markov_matrices[member_elevation] = np.array(fastio_load(path))
-    File "C:\Appl\TDI\fatigue-calculations\baseline_methods\utils\fastnumpyio.py", line 26, in load
-        file=open(file,"rb")
-    PermissionError: [Errno 13] Permission denied: 'C:\\Appl\\TDI\\fatigue-calculations\\baseline_methods\\output\\all_turbines'
-    '''
+    multiprocess = True
         
     args = [(preprosessed_structure_file_contents_paths[i], 
              member_geo_path,
              DEM_data_path,
-             turbine_output_dir, 
+             turbine_result_dir, 
              member_markov_path,
              logger,
              DFFs, 
@@ -271,10 +261,10 @@ if __name__ == '__main__':
     turbine_names = [filename.split(' ')[2] for filename in structure_file_names]
     single_cluster = False
     # prepare file paths with formatting for cluster ID and turbine name
-    turbine_output_dir  = fr'{os.getcwd()}\output\all_turbines'
+    turbine_result_dir  = fr'{os.getcwd()}\output\all_turbines'
     member_geo_path     = fr'{os.getcwd()}\data' +  r'\{}_member_geos.xlsx' # format for cluster
-    DEM_data_path       = turbine_output_dir + r'\{}\{}_combined_DEM.xlsx' # format for (cluster, cluster)
-    member_markov_path  = turbine_output_dir + r'\{}\total_markov_member{}.npy' # format for (cluster, member_no)
+    DEM_data_path       = turbine_result_dir + r'\{}\{}_combined_DEM.xlsx' # format for (cluster, cluster)
+    member_markov_path  = turbine_result_dir + r'\{}\total_markov_member{}.npy' # format for (cluster, member_no)
     # geo_path          = fr'{os.getcwd()}\output' + r'\{}_util_and_geos.xlsx' # format for turbine_name
     
     logger.info('Reading all utils')
@@ -288,7 +278,7 @@ if __name__ == '__main__':
                                             preprosessed_structure_file_contents_paths, 
                                             member_geo_path,
                                             DEM_data_path,
-                                            turbine_output_dir, 
+                                            turbine_result_dir, 
                                             member_markov_path,
                                             logger,
                                             DFFs = [], 

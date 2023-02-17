@@ -8,8 +8,7 @@ import pandas as pd
 import sys
 import os
 from multiprocessing import Pool
-from parse_markov_matrices import get_markov_files_paths
-
+from parse_markov_matrices import get_files_in_dir_matching_identifier as get_markov_files_paths
 '''
 Script for calculating lifetime of a turbine's most dimensioning sector damage
 '''
@@ -56,15 +55,9 @@ def calculate_damage_from_DEM_scale(logger, sectors, cluster, turbine_name, DLC_
     # we must backtrack the final DEM calculations to 10-min scenarios for each DLC, unweighted
     
     # Create geometries with pre-calculated A, I, Z, alpha etc
-    geometries_of_interest_df = pd.read_excel(fr'{os.getcwd()}\unused\marius\DA_P53_CD_all.xlsx')
-    geometries_of_interest_df['gritblast'] = geometries_of_interest_df['gritblast'].fillna(1.0)
-    geometries_of_interest_df['scf'] = geometries_of_interest_df['scf'].fillna(1.0)
-    geometries_of_interest_df['largest_weld_length'] = geometries_of_interest_df['largest_weld_length'].fillna(70)
+    geometries_of_interest_df = pd.read_excel(fr'{os.getcwd()}\output\all_turbines\{cluster}\{turbine_name}\util_rule_vs_report.xlsx')
     geometries_of_interest_cross_sections = create_geo_matrix(geometries_of_interest_df, sectors)
-    
-    
-    # util_df = pd.read_excel(fr'{os.getcwd()}\output\DA_P53_CD_rule_vs_report.xlsx')
-    util_df = pd.read_excel(fr'{os.getcwd()}\output\all_turbines\{cluster}\{turbine_name}_rule_vs_report.xlsx')
+    util_df = pd.read_excel(fr'{os.getcwd()}\output\all_turbines\{cluster}\{turbine_name}\util_rule_vs_report.xlsx')
     
     idx_for_worst_elevation = util_df['in_place_utilization'].argmax() # TODO must convert to numeric to use argmax?
     cross_section_at_worst_elevation = geometries_of_interest_cross_sections[idx_for_worst_elevation] 
@@ -97,14 +90,19 @@ def calculate_damage_from_DEM_scale(logger, sectors, cluster, turbine_name, DLC_
 
 if __name__ == '__main__':
     
-    logger = setup_custom_logger('main')
+    logger = setup_custom_logger('lookup_table')
     sectors = [float(i) for i in range(0, 359, 15)]
-    cluster = 'JLO'
-    turbine_name = 'DA_P53_CD'
+    clusters = ['JLN', 'JLO', 'JLP']
+    turbine_output_dir  = fr'{os.getcwd()}\output\all_turbines'
+    all_files = [os.path.join(path, name) for path, subdirs, files in os.walk(turbine_output_dir) for name in files if 'worst_elevation_comparison' in name]
+    turbines = [file_name.split('\\')[-2] for file_name in all_files]
+    
     DLC_file_path = fr'{os.getcwd()}\data' + r'\Doc-0081164-HAL-X-13MW-DGB-A-OWF-Detailed DLC List-Fatigue Support Structure Load Assessment_Rev7.0.xlsx'
-
-    overall_fatigue_table = calculate_damage_from_DEM_scale(logger, sectors, cluster, turbine_name, DLC_file_path)
-    overall_fatigue_table.to_excel(fr'{os.getcwd()}\output\all_turbines\{cluster}\{turbine_name}\lookup_table.xlsx')
+    
+    for cluster in clusters:
+        for turbine_name in turbines:
+            overall_fatigue_table = calculate_damage_from_DEM_scale(logger, sectors, cluster, turbine_name, DLC_file_path)
+            overall_fatigue_table.to_excel(fr'{os.getcwd()}\output\all_turbines\{cluster}\{turbine_name}\lookup_table.xlsx')
     
     # Future: use that damage to re-calculate lifetimes
 

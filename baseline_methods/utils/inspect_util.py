@@ -33,16 +33,15 @@ def old_stuff():
 
 if __name__ == '__main__':
     
-    turbine_output_dir  = fr'{os.getcwd()}\output\all_turbines\JLO'
-    all_files = [os.path.join(path, name) for path, subdirs, files in os.walk(turbine_output_dir) for name in files]
-    all_files = [file for file in all_files if 'worst_elevation_comparison' in file]
+    turbine_output_dir  = fr'{os.getcwd()}\output\all_turbines'
+    all_files = [os.path.join(path, name) for path, subdirs, files in os.walk(turbine_output_dir) for name in files if 'worst_elevation_comparison' in name]
+    # all_files = [file for file in all_files ]
     
     comparison_results = []
     for file in all_files:
         res = pd.read_excel(file).iloc[0]
-        print(res)
-        print(res.shape)
         comparison_results.append( res )
         
     df = pd.DataFrame(comparison_results)
+    pd.options.display.max_rows = 500 # Print more rows
     print(df)

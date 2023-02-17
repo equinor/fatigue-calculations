@@ -45,6 +45,8 @@ def create_geo_matrix(geometry, sectors):
         # this way of iterating geometry is not sexy, but it contains one row with headers etc nicely and is only iterated through a few times
         geo_row = geometry.iloc[geo_idx]
         
+        print(geo_row)
+        
         out_df[geo_idx]['elevation']   = geo_row['elevation']
         out_df[geo_idx]['in_out']      = geo_row['in_out']
         out_df[geo_idx]['description'] = geo_row['description']
