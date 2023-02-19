@@ -45,8 +45,6 @@ def create_geo_matrix(geometry, sectors):
         # this way of iterating geometry is not sexy, but it contains one row with headers etc nicely and is only iterated through a few times
         geo_row = geometry.iloc[geo_idx]
         
-        print(geo_row)
-        
         out_df[geo_idx]['elevation']   = geo_row['elevation']
         out_df[geo_idx]['in_out']      = geo_row['in_out']
         out_df[geo_idx]['description'] = geo_row['description']
@@ -58,11 +56,11 @@ def create_geo_matrix(geometry, sectors):
         out_df[geo_idx]['I'] = I
         out_df[geo_idx]['Z'] = Z
         
-        # sectors_compass = global_2_compass(sectors)
-        # adjusted_sectors_compass, scf_per_point = get_scf_sector_list(geo_row, sectors_compass) # (n_geo, n_angles) shaped
-        # adjusted_sectors = compass_2_global(adjusted_sectors_compass)
-        # out_df[geo_idx]['adjusted_angles'] = adjusted_sectors
-        # out_df[geo_idx]['scf_per_point'] = scf_per_point
+        sectors_compass = global_2_compass(sectors)
+        adjusted_sectors_compass, scf_per_point = get_scf_sector_list(geo_row, sectors_compass) # (n_geo, n_angles) shaped
+        adjusted_sectors = compass_2_global(adjusted_sectors_compass)
+        out_df[geo_idx]['adjusted_angles'] = adjusted_sectors
+        out_df[geo_idx]['scf_per_point'] = scf_per_point
         
         out_df[geo_idx]['sn_curve']    = SN_Curve_qats(geo_row['sn_curve'])
         out_df[geo_idx]['scf']         = geo_row['scf']
@@ -77,9 +75,9 @@ def create_geo_matrix(geometry, sectors):
         try:
             # If the geometry is a member, it also has a column where the moments and forces are defined
             out_df[geo_idx]['member_id'] = geo_row['member_id']
-            out_df[geo_idx]['mx_col']     = geo_row['mx_col']
-            out_df[geo_idx]['my_col']     = geo_row['my_col']
-            out_df[geo_idx]['fz_col']     = geo_row['fz_col']
+            out_df[geo_idx]['mx_col']    = geo_row['mx_col']
+            out_df[geo_idx]['my_col']    = geo_row['my_col']
+            out_df[geo_idx]['fz_col']    = geo_row['fz_col']
             
         except KeyError as err:
             # print(f'Caught Key Error: {err} - setting member column as None and counts this as non-member node')

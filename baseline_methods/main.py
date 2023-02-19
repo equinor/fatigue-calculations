@@ -23,7 +23,7 @@ Implementation of in-place damage of the Dogger Bank wind turbines
 - This damage can be stored as a binary file and used for lifetime calculations etc. 
 '''
 
-def check_and_retrive_output_dirs(cluster, current_working_directory = os.getcwd()):
+def check_and_retrieve_output_dirs(cluster, current_working_directory = os.getcwd()):
     
     dirs = [fr'{os.getcwd()}\output', fr'{os.getcwd()}\output\all_turbines', fr'{os.getcwd()}\output\all_turbines\{cluster}', fr'{os.getcwd()}\output\all_turbines\{cluster}\markov']
     
@@ -91,7 +91,7 @@ def main_calculation_of_DEM_or_damage_cluster_i(cluster, logger, multiprocess = 
     n_geometries = geometry.shape[0]
     geo_matrix   = create_geo_matrix(geometry, sectors) # better matrix to pass to the main function
 
-    out_dir, cycles_dir = check_and_retrive_output_dirs(cluster)
+    out_dir, cycles_dir = check_and_retrieve_output_dirs(cluster)
     
     elevations = [f'{geo_matrix[i]["elevation"]} mLAT' for i in range(len(geo_matrix))]
     status_string = f'Processing {"multiprocessed" if multiprocess else "single CPU"} {info_str} calculation\nDLCs {DLC_IDs}\n{n_geometries} elevations: {elevations}'

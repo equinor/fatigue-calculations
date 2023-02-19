@@ -187,8 +187,9 @@ def read_utilization_and_store_geometries(structural_report_path, result_dir, ST
         df.to_excel(result_path)
         print(f'stored util and geos for {turbine_name}:')
         
-    pd.options.display.max_rows = 100 
-    print(df)
+    # pd.options.display.max_rows = 100 
+    # print(df)
+    
     return result_path
     
 if __name__ == '__main__':

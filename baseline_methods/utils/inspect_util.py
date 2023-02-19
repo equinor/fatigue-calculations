@@ -3,7 +3,7 @@ import numpy as np
 import os 
 
    
-def old_stuff():
+def calculate():
 
     df = pd.read_excel(fr'{os.getcwd()}\output\DA_P53_CD_rule_vs_report.xlsx')
     
@@ -26,16 +26,16 @@ def old_stuff():
     is_inside = (df['in_out'] == 'I') | (df['in_out'] == 'i')
     is_outside = ~is_inside
     
-    # print(df)
+    print(df)
     print(df[ df['util_diff'].abs() > 2.0])
     print(df)
-    # print(df[ df['util_fraction'].abs() < 10.0])
+    print(df[ df['util_fraction'].abs() < 10.0])
+    # print('Nothing')
 
 if __name__ == '__main__':
     
     turbine_output_dir  = fr'{os.getcwd()}\output\all_turbines'
     all_files = [os.path.join(path, name) for path, subdirs, files in os.walk(turbine_output_dir) for name in files if 'worst_elevation_comparison' in name]
-    # all_files = [file for file in all_files ]
     
     comparison_results = []
     for file in all_files:

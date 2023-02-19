@@ -7,6 +7,8 @@ import numpy as np
 Used for inspecting the damage calculations, to see min lifetime
 '''
 
+# TODO calculate utilization over 27.08 years of lifetime to verify that util numbers match with initial DEM scaled calculations
+
 def calculate_lifetime_from_fatigue_lookup_table(df):
     # Assumes damage has been calculated with DFF already
     
