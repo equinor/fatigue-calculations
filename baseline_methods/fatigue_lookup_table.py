@@ -86,8 +86,8 @@ def calculate_damage_from_DEM_scale(logger, sectors, cluster, turbine_name, DLC_
         args = [(paths_to_markov_cycles_closest_member[case_i], DEM_scaling_factor, cross_section_at_worst_elevation, DFF) for case_i in range(n_cases)]
         
         damages_per_case_DLC_i = np.zeros( (n_cases, len(sectors)) )
-        if False:
-            n_cpus_in_mp = os.cpu_count() - 1 # TODO in case I want to use the computer for something else during iteration
+        if True:
+            n_cpus_in_mp = int(os.cpu_count()/ 2) # TODO in case I want to use the computer for something else during iteration
             logger.info(f'Multiprocessing with {n_cpus_in_mp} out of {os.cpu_count()} cores')
             with Pool(n_cpus_in_mp) as pool:
                 damages_per_case_DLC_i = np.array( pool.starmap(calculate_unweighted_damage_case_i, args) )
@@ -116,10 +116,11 @@ if __name__ == '__main__':
     
     DLC_file_path = fr'{os.getcwd()}\data' + r'\Doc-0081164-HAL-X-13MW-DGB-A-OWF-Detailed DLC List-Fatigue Support Structure Load Assessment_Rev7.0.xlsx'
     
-    for cluster, turbine_name in zip(clusters, turbine_names):
+    for turbine_i, (cluster, turbine_name) in enumerate(zip(clusters, turbine_names)):
+        logger.info(f'[{turbine_i+1} / {len(turbine_names)}] Calculating fatigue table for {cluster} {turbine_name}')
         overall_fatigue_table = calculate_damage_from_DEM_scale(logger, sectors, cluster, turbine_name, DLC_file_path)
         overall_fatigue_table.to_excel(fr'{os.getcwd()}\output\all_turbines\{cluster}\{turbine_name}\lookup_table.xlsx')
-        logger.info(f'Stored fatigue lookup table for {turbine_name}')
+        logger.info(f'[{turbine_i+1} / {len(turbine_names)}] Stored fatigue lookup table for {turbine_name}')
     
     logger.info(f'Stored overall lookuptables for all {len(turbine_names)} turbine_names, in their respective folders')
     
