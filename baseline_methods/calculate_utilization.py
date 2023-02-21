@@ -182,13 +182,13 @@ def calculate_utilization_single_turbine(structural_report_geo_path,
     if not os.path.exists(result_path):
         os.makedirs(result_path)
     
-    df_path = result_path + fr'\util_rule_vs_report.xlsx'
+    df_path = result_path + fr'\util_rule_vs_report.xlsx' # TODO os.path.join
     df.to_excel(df_path, index = False)
     pd.options.display.max_rows = 100 # Print more rows
     # print(df)
     
     df_res = return_worst_elevation(df)
-    df_res_path = result_path + fr'\util_worst_elevation_comparison.xlsx'
+    df_res_path = result_path + fr'\util_worst_elevation_comparison.xlsx' # TODO os.path.join
     df_res.to_excel(df_res_path, index = False)
     
     return None # df, df_path, df_res, df_res_path 
@@ -225,7 +225,7 @@ def calculate_utilization_all_turbines( preprosessed_structure_file_contents_pat
                                         logger,
                                         DFFs = [], 
                                         single_cluster = False,
-                                        multiprocess = True):
+                                        multiprocess_turbines = True):
     
     args = [(preprosessed_structure_file_contents_paths[i], 
              member_geo_path,
@@ -237,7 +237,7 @@ def calculate_utilization_all_turbines( preprosessed_structure_file_contents_pat
              single_cluster
             ) for i in range(len(preprosessed_structure_file_contents_paths))]
     
-    if multiprocess:
+    if multiprocess_turbines:
         logger.info(f'Calculating utilization for all turbines multiprocessed')
         n_cpus_in_mp = int( os.cpu_count() / 2 )  # TODO in case I want to use the computer for something else during iteration
         with Pool(n_cpus_in_mp) as p:
@@ -282,6 +282,6 @@ if __name__ == '__main__':
                                             logger,
                                             DFFs = [], 
                                             single_cluster = False,
-                                            multiprocess = False)
+                                            multiprocess_turbines = False)
 
     logger.info('Utilization complete')

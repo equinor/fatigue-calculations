@@ -9,7 +9,7 @@ from natsort import natsorted
 import sys
 
 # TODO this function is more general purpose than initially intended, so makes no sense to be here
-def get_files_in_dir_matching_identifier(cycle_storage_dir: str, identifier: str):
+def get_files_in_dir_matching_identifier_natsorted(cycle_storage_dir: str, identifier: str):
     # Files are found as strings, so Python sorts them lexicographical where ['10', '1', '2'].sort() = ['1', '10', '2' ]
     # natsort sorts like expected: ['1', '2', '10']
     '''
@@ -47,7 +47,7 @@ def get_all_moment_cycles_weighted_by_probs_member_i(cycle_storage_dir: str,
         probabilities = list(DLC_info_df.Tot_Prob_in_10_percent_idling_scenario_hr_year) # Extract directly from excel
         
         # Collect file paths of prepared cycles from main script previously. Scale all counts according to prob of occurence of case
-        file_paths_DLC_i = get_files_in_dir_matching_identifier(cycle_storage_dir, identifier = fr'DB_{cluster}_{DLC}cycles_member{member}')
+        file_paths_DLC_i = get_files_in_dir_matching_identifier_natsorted(cycle_storage_dir, identifier = fr'DB_{cluster}_{DLC}cycles_member{member}')
         multiprocess_args = [(file_paths_DLC_i[i], 
                               probabilities[i]
                              ) for i in range(len(file_paths_DLC_i))]
