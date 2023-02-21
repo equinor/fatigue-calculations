@@ -1,31 +1,35 @@
 import logging
 import sys
-
 import datetime
 import logging
+import os
+import logaugment
+import time 
 
-class TimeFilter(logging.Filter):
+def round_timedelta_to_closest_second(delta: datetime.timedelta):
+    if delta.microseconds >= 500_000:
+        delta += datetime.timedelta(seconds = 1) # round up
+    return delta - datetime.timedelta(microseconds = delta.microseconds)
 
-    def filter(self, record):
-        try:
-          last = self.last
-        except AttributeError:
-          last = record.relativeCreated
-
-        delta = datetime.datetime.fromtimestamp(record.relativeCreated/1000.0) - datetime.datetime.fromtimestamp(last/1000.0)
-
-        record.relative = '{0:.2f}'.format(delta.seconds + delta.microseconds/1000000.0)
-
-        self.last = record.relativeCreated
-        return True
-
-# https://stackoverflow.com/questions/28330317/print-timestamp-for-logging-in-python
+def process_record(record):
+  # https://stackoverflow.com/questions/31521859/python-logging-module-time-since-last-log
+  now = datetime.datetime.utcnow()
+  try:
+      delta = now - process_record.now
+  except AttributeError: # no previous log -> add delta = 0s 
+      delta = (datetime.datetime.utcnow() - datetime.datetime.utcnow()) # 0s in a formatted way
+  process_record.now = now
+  return {'time_since_last': round_timedelta_to_closest_second(delta)}
 
 def setup_custom_logger(name):
-    # TODO add a function which also adds "time since last logging event" to easier track time between them
-    formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',
+    formatter = logging.Formatter(fmt='%(asctime)s, dT: %(time_since_last)s | %(levelname)-6s | %(message)s',
                                   datefmt='%Y-%m-%d %H:%M:%S')
-    handler = logging.FileHandler('log.txt', mode='w')
+    
+    path = os.path.join(os.getcwd(), 'logs')
+    if not os.path.exists(path):
+      os.makedirs(path)
+    
+    handler = logging.FileHandler(os.path.join(path, f"{name}_log.txt"), mode='w')
     handler.setFormatter(formatter)
     screen_handler = logging.StreamHandler(stream=sys.stdout)
     screen_handler.setFormatter(formatter)
@@ -33,5 +37,16 @@ def setup_custom_logger(name):
     logger.setLevel(logging.DEBUG)
     logger.addHandler(handler)
     logger.addHandler(screen_handler)
+    logaugment.add(logger, process_record)
     return logger
 
+if __name__ == '__main__':
+  
+  logger = setup_custom_logger('tester')
+  logger.info('Start')
+  time.sleep(3)
+  logger.debug('Deb')
+  time.sleep(5)
+  logger.error('T')
+  print('End')
+  
