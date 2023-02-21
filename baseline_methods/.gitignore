@@ -1,6 +1,6 @@
 # Custom defined - dont upload all the large simulation files to a public repo
 unused/
-log.txt
+logs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
