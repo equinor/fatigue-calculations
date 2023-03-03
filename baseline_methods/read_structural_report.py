@@ -195,5 +195,5 @@ def read_utilization_and_store_geometries(structural_report_path, result_dir, ST
 if __name__ == '__main__':
     
     structural_report_path = os.getcwd() + r'\data\structural_specific_reports\P0061-C1224-WP03-REP-002-F - DA_J01_JC Foundation Structural Design Report.pdf'
-    result_dir = os.getcwd() + r'\output\all_turbines'
+    result_dir = os.path.join(os.getcwd(), r'output\all_turbines')
     path = read_utilization_and_store_geometries(structural_report_path, result_dir, STORE = False)

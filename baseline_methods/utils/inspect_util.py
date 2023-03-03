@@ -34,14 +34,34 @@ def calculate():
 
 if __name__ == '__main__':
     
-    turbine_output_dir  = fr'{os.getcwd()}\output\all_turbines'
-    all_files = [os.path.join(path, name) for path, subdirs, files in os.walk(turbine_output_dir) for name in files if 'worst_elevation_comparison' in name]
+    # TODO instead of using 'worst_elevation_comparison', we should do a comparison of utilization results in util_rule_vs_report.xlsx, aggregated for the same elevation / in_out
+    # and compare it with the output of read_structural_report D_tot! 
+    # df.groupby(['el', 'io'], as_index = False)['util'].sum()
     
+    turbine_output_dir  = fr'{os.getcwd()}\output\all_turbines'
+    info_from_reports_paths = [os.path.join(path, name) for path, subdirs, files in os.walk(turbine_output_dir) for name in files if 'geos_from_structure_report' in name]
+    pd.options.display.max_rows = 500 # Print more rows
+
+    max_dtot = []
+    for path in info_from_reports_paths:
+        file = pd.read_excel(path)
+        file = file[ file['Dd_tot'] != '-']
+        res = file.iloc[ pd.to_numeric(file['Dd_tot']).argmax()]
+        res = res[['turbine_name', 'cluster', 'elevation', 'in_out', 'description', 'in_place_utilization', 'Dd_tot']]
+        max_dtot.append( res)
+    
+    df_reported = pd.DataFrame(max_dtot)
+    report_vs_rule_comparison_paths = [os.path.join(path, name) for path, subdirs, files in os.walk(turbine_output_dir) for name in files if 'worst_elevation_comparison' in name]
+
     comparison_results = []
-    for file in all_files:
-        res = pd.read_excel(file).iloc[0]
+    for file in report_vs_rule_comparison_paths:
+        res = pd.read_excel(file).iloc[0]   
+        res = res[['turbine_name', 'cluster', 'rule_worst_description', 'rule_worst_elevation', 'rule_worst_utilization']]
         comparison_results.append( res )
         
-    df = pd.DataFrame(comparison_results)
-    pd.options.display.max_rows = 500 # Print more rows
-    print(df)
+    df_comparison = pd.DataFrame(comparison_results)
+    
+    df_reported.reset_index(drop=True, inplace=True)
+    df_comparison.reset_index(drop=True, inplace=True)
+    df_out = pd.concat( [df_reported, df_comparison], axis=1) 
+    print(df_out) 

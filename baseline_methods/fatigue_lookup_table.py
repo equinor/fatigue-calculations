@@ -58,7 +58,7 @@ def calculate_damage_from_DEM_scale(sectors, cluster, turbine_name, res_base_dir
     # we must backtrack the final DEM calculations to 10-min scenarios for each DLC, unweighted
 
     logger.info(f'Calculating DEM-scaled damage for {cluster} turbine {turbine_name}')
-    n_cpus_in_mp = int(os.cpu_count() - 1) # TODO in case I want to use the computer for something else during iteration
+    n_cpus_in_mp = int(os.cpu_count()) # TODO in case I want to use the computer for something else during iteration
     if multiprocess_cases:
         logger.info(f'Multiprocessing with {n_cpus_in_mp} out of {os.cpu_count()} cores')
     
@@ -68,10 +68,10 @@ def calculate_damage_from_DEM_scale(sectors, cluster, turbine_name, res_base_dir
     util_df = pd.read_excel(os.path.join(res_base_dir, cluster, turbine_name, 'util_rule_vs_report.xlsx'))
     
     util_df['rule_utilization'] = util_df['rule_miner_sum_no_DFF'] * util_df['rule_DFF'] * 100.0
-    idx_for_worst_elevation = util_df['rule_utilization'].argmax() # TODO must convert to numeric to use argmax? TODO choose report or rule's util here? Use RULe's!
+    idx_for_worst_elevation = util_df['rule_utilization'].argmax()
     
     cross_section_at_worst_elevation = geometries_of_interest_cross_sections[idx_for_worst_elevation] 
-    worst_elevation_df = util_df.iloc[ idx_for_worst_elevation ] # TODO keep dimensionality by using double brackets when iloc'ing? => [[]]
+    worst_elevation_df = util_df.iloc[ idx_for_worst_elevation ]
     closest_member_no  = worst_elevation_df['member_closest']
     DEM_scaling_factor = worst_elevation_df['DEM_scaling_factor']
         
@@ -80,11 +80,16 @@ def calculate_damage_from_DEM_scale(sectors, cluster, turbine_name, res_base_dir
         # Calculate unweighted, 10-min damage from the scaled ranges for the worst elevation for every individual DLC
         DLC_file_df = pd.read_excel(DLC_file_path, sheet_name = DLC)
         n_cases = DLC_file_df.shape[0]
-        probs = list(DLC_file_df['Tot_Prob_in_10_percent_idling_scenario_hr_year'])
         
         paths_to_markov_cycles_closest_member = get_files_in_dir_matching_identifier_natsorted(cycle_storage_dir = os.path.join(res_base_dir, cluster, 'markov'), identifier = fr'DB_{cluster}_{DLC}cycles_member{closest_member_no}')
         DFF = worst_elevation_df['rule_DFF']
-        args = [(paths_to_markov_cycles_closest_member[case_i], DEM_scaling_factor, cross_section_at_worst_elevation, DFF) for case_i in range(n_cases)]
+        
+        args = [(paths_to_markov_cycles_closest_member[case_i], 
+                 DEM_scaling_factor, 
+                 cross_section_at_worst_elevation, 
+                 DFF
+                 ) for case_i in range(n_cases)]
+        
         damages_per_case_DLC_i = np.zeros( (n_cases, len(sectors)) )
         
         logger.info(f'[DLC {DLC_idx+1} / {len(DLC_IDs)}] Scaling and calculating for DLC {DLC} with {n_cases} cases')
@@ -95,13 +100,17 @@ def calculate_damage_from_DEM_scale(sectors, cluster, turbine_name, res_base_dir
             for case_i in range(n_cases):
                 damages_per_case_DLC_i[case_i, :] = calculate_unweighted_damage_case_i(*args[case_i])
                 
-        out_dfs.append(create_fatigue_table_DLC_i(damages_per_case_DLC_i, DLC, probs, DLC_file_df))
+        out_dfs.append(create_fatigue_table_DLC_i(damages_per_case_DLC_i, DLC, DLC_file_df))
         logger.info(f'[DLC {DLC_idx+1} / {len(DLC_IDs)}] Scaled and calculated DLC {DLC} with {n_cases} cases')
     
     overall_fatigue_table = pd.concat(out_dfs, axis = 0) 
     return overall_fatigue_table 
 
 if __name__ == '__main__':
+    
+    ## TODO 
+    
+    # Adujust script to account for the elevations with largest util on elevations with two sn curves throughout the lifetime...
     
     logger = setup_custom_logger('lookup_table')
     logger.info('Initiating damage calculation and fatigue lookup table creation + storage')
@@ -128,7 +137,6 @@ if __name__ == '__main__':
                                                                 DLC_file_path      = DLC_file_path, 
                                                                 logger             = logger, 
                                                                 multiprocess_cases = True)
-        print(overall_fatigue_table) # TODO
         overall_fatigue_table.to_excel(os.path.join(res_base_dir, cluster, turbine_name, 'lookup_table.xlsx'), index = False)
         logger.info(f'[Turbine {turbine_i+1} / {len(turbine_names)}] Stored fatigue lookup table for {turbine_name}')
     

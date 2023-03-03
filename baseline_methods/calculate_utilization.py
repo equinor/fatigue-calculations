@@ -11,6 +11,12 @@ from read_structural_report import read_utilization_and_store_geometries
 from multiprocessing import Pool
 from utils.DB_turbine_name_funcs import return_turbine_name_from_path, sort_paths_according_to_turbine_names
 
+
+'''
+Utilization ABOVE SEABED
+For any other elevations - this script captures it
+'''
+
 def find_above_below_closest_elevations(df, member_elevations):
     df['dist_to_members'] = df.apply(lambda row: member_elevations - row['elevation'], axis=1)
     df['idx_elevation_above'] = df.apply(lambda row: np.ma.MaskedArray(row['dist_to_members'], row['dist_to_members'] < 0.0).argmin(), axis=1)
@@ -19,6 +25,9 @@ def find_above_below_closest_elevations(df, member_elevations):
     return member_elevations[df['idx_elevation_above']],  member_elevations[df['idx_elevation_below']], member_elevations[df['idx_elevation_closest']]
 
 def return_worst_elevation(df):
+    # TODO should this be moved 'after' the utilization script completely, so that another script can groupby(['elevation', 'in_out'])['util].sum()
+    # Compare towards the D_tot from the read_structural_report outputs in utils_and_geos_from_structure_report.xlsx
+    
     # find the elevation that the report evaluates as the one with highest utilization
     # manipulate dataframe columns to be readable in standalone
     # Then, compare it to RULe numbers:
@@ -74,8 +83,7 @@ def calculate_utilization_single_turbine(structural_report_geo_path,
                                          result_path,
                                          member_markov_path,
                                          logger,
-                                         DFFs: list,
-                                         single_cluster = False):
+                                         DFFs: list):
 
     sectors = [float(i) for i in range(0,359,15)]
 
@@ -87,14 +95,7 @@ def calculate_utilization_single_turbine(structural_report_geo_path,
     turbine_name = geometries_of_interest_df.iloc[0]['turbine_name']
     cluster = geometries_of_interest_df.iloc[0]['cluster']
     logger.info(f'Interpolating DEM and calculating utilization for {cluster} turbine {turbine_name}')
-    
-    
-    # TODO temporary option if only one cluster is to be checked
-    if single_cluster:
-        if cluster != single_cluster:
-            print(f'{turbine_name} not in single cluster {single_cluster} - skipping')
-            return None
-    
+        
     member_geometry = pd.read_excel(member_path.format(cluster))
     df_DEM_members_xlsx = pd.read_excel(DEM_data_path.format(cluster, cluster))
     
@@ -148,7 +149,7 @@ def calculate_utilization_single_turbine(structural_report_geo_path,
     logger.info('Collecting markov reference for closest elevations at worst sector')
     df['markov_reference'] = df.apply(lambda row: markov_matrices[row['elevation_closest']][row['closest_sector_idx']], axis=1)
     
-    # NOTE sorting could be beneficial to avoid rounding errors, but takes a lot of time
+    # NOTE sorting could be beneficial to avoid rounding errors, but takes a lot of time and has not been shown to give any other result than unsorted
     #df['markov_reference'] = df.apply(lambda row: row['markov_reference'][ row['markov_reference'][:, 0].argsort() ], axis=1) # sort according to ascending moment ranges
 
     # Scale reference markov for hotspot: moment ranges scaled according to the DEM_scf / DEM_elevation_closest factor
@@ -163,7 +164,7 @@ def calculate_utilization_single_turbine(structural_report_geo_path,
     df['Seq_hs'] = df['Seq'] * df['scf'] * df['gritblast']
     
     # Create stress cycles made out of stress in MPa and counts over entire lifetime, 
-    # Exception is if validation type is "Equivalent", in which we skip the markov matrix scaling and calculate stress directly from DEM
+    # Exception is if validation type is "Equivalent", in which we skip the markov matrix scaling and calculate stress directly from DEM as per reports
     df['stress_cycles_MPa_lifetime'] = df.apply(lambda row: 
         np.hstack( (row['stress_ranges_scaled'] / 1e6, row['markov_reference'][:, [1]] * row['lifetime'])) if row['ValType'].lower() != 'equivalent' 
         else np.array([[row['Seq_hs'] * row['alpha'], row['Nref']]]), axis=1)
@@ -178,7 +179,7 @@ def calculate_utilization_single_turbine(structural_report_geo_path,
              'rule_DFF', 'in_place_utilization', 'DEM_scaling_factor', 'member_closest',
              'elevation_closest', 'closest_sector_idx', 'ValType', 'turbine_name', 'cluster']].copy()
     
-    result_path = result_path + fr'\{cluster}\{turbine_name}'
+    result_path = result_path + fr'\{cluster}\{turbine_name}' # TODO os.path.join(result_path, cluster, turbine_name)
     if not os.path.exists(result_path):
         os.makedirs(result_path)
     
@@ -207,7 +208,6 @@ def preprocess_structure_reports(preprocess_reports, structure_file_paths, prepr
     else: 
         # we do not want to pre-process reports -> find all files matching 
         try:
-            # preprocess_files_names = next(os.walk(preprocessed_dir), (None, None, []))[2]
             preprosessed_structure_file_contents_paths = [os.path.join(path, name) for path, subdirs, files in os.walk(preprocessed_dir) for name in files if 'utils_and_geos_from_structure_report' in name]
             logger.info('Option to load previously preprocessed and stored structural reports chosen. Found and loaded all')
         except:
@@ -224,7 +224,6 @@ def calculate_utilization_all_turbines( preprosessed_structure_file_contents_pat
                                         member_markov_path,
                                         logger,
                                         DFFs = [], 
-                                        single_cluster = False,
                                         multiprocess_turbines = True):
     
     args = [(preprosessed_structure_file_contents_paths[i], 
@@ -233,13 +232,12 @@ def calculate_utilization_all_turbines( preprosessed_structure_file_contents_pat
              turbine_result_dir, 
              member_markov_path,
              logger,
-             DFFs, 
-             single_cluster
+             DFFs
             ) for i in range(len(preprosessed_structure_file_contents_paths))]
     
     if multiprocess_turbines:
         logger.info(f'Calculating utilization for all turbines multiprocessed')
-        n_cpus_in_mp = int( os.cpu_count() / 2 )  # TODO in case I want to use the computer for something else during iteration
+        n_cpus_in_mp = int(os.cpu_count()) # TODO change parameter to <= cpu_count if laptop capacity is limited
         with Pool(n_cpus_in_mp) as p:
             _ = p.starmap(calculate_utilization_single_turbine, args)
     
@@ -250,7 +248,13 @@ def calculate_utilization_all_turbines( preprosessed_structure_file_contents_pat
             _ = calculate_utilization_single_turbine(*args[i])
             logger.info(f'[{i+1}/{len(preprosessed_structure_file_contents_paths)}] Ended utilization script for turbine {filename.split(dash)[-2]}')
 
+    return None 
+
 if __name__ == '__main__':
+    
+    # TODO 
+    
+    # The utilization script must be adjusted to account for elevations with two different lifetimes due to different SN-curves 
     
     logger = setup_custom_logger('utilization')
        
@@ -272,8 +276,7 @@ if __name__ == '__main__':
                                                                               preprocessed_dir     = fr'{os.getcwd()}\output\all_turbines', 
                                                                               logger               = logger)
     
-    logger.info('Activating utilization results')
-    # NOTE doing this multiprocessed 
+    logger.info('Activating utilization results') 
     _ = calculate_utilization_all_turbines( preprosessed_structure_file_contents_paths, 
                                             member_geo_path,
                                             DEM_data_path,
@@ -281,7 +284,6 @@ if __name__ == '__main__':
                                             member_markov_path,
                                             logger,
                                             DFFs = [], 
-                                            single_cluster = False,
                                             multiprocess_turbines = False)
 
     logger.info('Utilization complete')
