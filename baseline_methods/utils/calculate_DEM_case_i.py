@@ -24,8 +24,6 @@ def calculate_DEM_case_i(binary_file_i, description_file_i, sectors, geo_matrix,
 
     Returns:
         np.array: 2D array containing internal DEM sum for each geometry (rows), for each sector/angle (columns) for the current DLC case
-        
-    TODO use the wohler exponent as inputs to function?
     """
     m = 5.0 # wohler exponent
     n_rainflow_bins = 128

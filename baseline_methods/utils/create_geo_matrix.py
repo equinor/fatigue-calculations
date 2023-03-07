@@ -4,6 +4,14 @@ from utils.transformations import compass_2_global, global_2_compass
 from utils.SN_Curve import SN_Curve_qats
 
 def calculate_cross_section_properties(geo_row):
+    """Calculate general geometric properties of a turbine's cross section as defined by properties in the input
+
+    Args:
+        geo_row (pandas.DataFrame): cross section properties
+
+    Returns:
+        float x 5: diameter | smallest wall thickness | area | second moment of inertia | section modulus
+    """
     
     D = geo_row['diameter'] # [m]
     t = geo_row['small_thickness'] / 1000.0 # [m] (millimeters converted to meters)
@@ -21,6 +29,15 @@ def calculate_cross_section_properties(geo_row):
     return D, t, A, I, Z
 
 def calculate_thickness_scaling_factors(geo_row, curve):
+    """Calculate the thickness scaling parameters used when accounting for the thickness of fatigue specimen relative to the reference thickness used in the DNVGL-RP-C203 SN-curves
+
+    Args:
+        geo_row (pandas.DataFrame): the Dataframe containing information about a single elevation
+        curve (SN_Curve_qats): implementation of the related DNVGL-RP-C203 SN-curve for the specific elevation
+
+    Returns:
+        (float, float, float): largest weld length as defined by DNVGL-RP-C203 | effective thickness | thickness scaling factor
+    """
     L_t   = geo_row['largest_weld_length']
     t_eff = min( 14.0 + 0.66 * L_t , geo_row['large_thickness']) # [mm] Effective thickness scaling
     t_eff = max(curve.t_ref, t_eff) # according to eq. 2.4.3 and 4 DNVGL-RP-C203, t_eff = t_ref when t_eff < t_ref

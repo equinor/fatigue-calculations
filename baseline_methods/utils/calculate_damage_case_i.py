@@ -1,6 +1,5 @@
 import numpy as np
 from utils.read_simulation_file import read_bladed_file
-import sys
 
 def calculate_damage_case_i(binary_file_i, description_file_i, sectors, geo_matrix, rainflow_func, DEM_correction_factor, store_cycles, cycle_storage_path):
     """

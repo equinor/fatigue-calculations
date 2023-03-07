@@ -12,16 +12,33 @@ def round_timedelta_to_closest_second(delta: datetime.timedelta):
     return delta - datetime.timedelta(microseconds = delta.microseconds)
 
 def process_record(record):
-  # https://stackoverflow.com/questions/31521859/python-logging-module-time-since-last-log
-  now = datetime.datetime.utcnow()
-  try:
-      delta = now - process_record.now
-  except AttributeError: # no previous log -> add delta = 0s 
-      delta = (datetime.datetime.utcnow() - datetime.datetime.utcnow()) # 0s in a formatted way
-  process_record.now = now
-  return {'time_since_last': round_timedelta_to_closest_second(delta)}
+    """Reacts to a logger call, like .info, and calculates the duration since last logger call. This can be added in to logger output.
+    
+    Inspired by https://stackoverflow.com/questions/31521859/python-logging-module-time-since-last-log
+
+    Args:
+        record (record): record
+
+    Returns:
+        dict: formatted to be compatible with logaugment 
+    """
+    now = datetime.datetime.utcnow()
+    try:
+        delta = now - process_record.now
+    except AttributeError: # no previous log -> add delta = 0s 
+        delta = (datetime.datetime.utcnow() - datetime.datetime.utcnow()) # 0s in a formatted way
+    process_record.now = now
+    return {'time_since_last': round_timedelta_to_closest_second(delta)}
 
 def setup_custom_logger(name):
+    """General purpose logger for printing to terminal with timestamps and to write to a log.txt file for later inspection
+
+    Args:
+        name (str): name of logger, deciding the name of the log.txt file
+
+    Returns:
+        logger: the logger
+    """
     formatter = logging.Formatter(fmt='%(asctime)s, dT: %(time_since_last)s | %(levelname)-6s | %(message)s',
                                   datefmt='%Y-%m-%d %H:%M:%S')
     

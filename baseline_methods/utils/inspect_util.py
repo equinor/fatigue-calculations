@@ -3,7 +3,7 @@ import numpy as np
 import os 
 
    
-def calculate():
+def inspect_single_turbine_properties():
 
     df = pd.read_excel(fr'{os.getcwd()}\output\DA_P53_CD_rule_vs_report.xlsx')
     
@@ -30,13 +30,8 @@ def calculate():
     print(df[ df['util_diff'].abs() > 2.0])
     print(df)
     print(df[ df['util_fraction'].abs() < 10.0])
-    # print('Nothing')
 
 if __name__ == '__main__':
-    
-    # TODO instead of using 'worst_elevation_comparison', we should do a comparison of utilization results in util_rule_vs_report.xlsx, aggregated for the same elevation / in_out
-    # and compare it with the output of read_structural_report D_tot! 
-    # df.groupby(['el', 'io'], as_index = False)['util'].sum()
     
     turbine_output_dir  = fr'{os.getcwd()}\output\all_turbines'
     info_from_reports_paths = [os.path.join(path, name) for path, subdirs, files in os.walk(turbine_output_dir) for name in files if 'geos_from_structure_report' in name]

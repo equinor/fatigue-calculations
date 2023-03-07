@@ -9,11 +9,9 @@ import numpy as np
 import pandas as pd
 from multiprocessing import Pool
 import os
-import argparse
-import sys
 
 '''
-Implementation of in-place damage of the Dogger Bank wind turbines
+Implementation of in-place damage and DEM calculation of the Dogger Bank wind turbines
 
 - Use the 10 minute timeseries from vendor simulations to extract forces and moments
 - Calculate the resulting axial force and bending moments on the relevant sectors of the intersection at the desired elevation on the structure -> we call these a geometry
@@ -35,9 +33,18 @@ def check_and_retrieve_output_dirs(cluster, current_working_directory = os.getcw
     return dirs[0], dirs[-1]
 
 def calc_unweighted_values(args, n_cases, output_table = [], multiprocess = True, calc_func = calculate_DEM_case_i,):
-    
-    if not multiprocess:
-        assert len(output_table) > 0, 'output table must be pre-initialiazed when running single CPU code'
+    """Calculates DEM or damage based on the calc func, without weighting it according to case probabilities
+
+    Args:
+        args (tuple): tuple of arguments to the Pool.starmap
+        n_cases (int): number of cases
+        output_table (list, optional): Defaults to [].
+        multiprocess (bool, optional): Defaults to True.
+        calc_func (func, optional): calculation function of DEM or damage. Defaults to calculate_DEM_case_i.
+
+    Returns:
+        np.ndarray: of size n_cases, n_geometries, n_sectors. contains damage or internal DEM sum for each of the combinations
+    """
     
     if multiprocess:
         with Pool() as p: # loop all cases multiprocessed across available CPUs 
@@ -45,12 +52,23 @@ def calc_unweighted_values(args, n_cases, output_table = [], multiprocess = True
         output_table = np.array(outputs)
         
     else:
+        assert len(output_table) > 0, 'output table must be pre-initialiazed when running single CPU code'
         for case_i in range(n_cases):
             output_table[[case_i], :, :] = calc_func(*args[case_i])
     
     return output_table # (n_cases, n_geos, n_sectors)
 
 def calculate_all_DEM_sums(clusters = ['JLN', 'JLO', 'JLP'], multiprocess = True):
+    """Calculate the internal DEM sums, to be used in the overall DEM formula when all DEMs for all DLCs has been concatenated
+    The results are stored, not returned.
+
+    Args:
+        clusters (list, optional): list of str with cluster names. Defaults to ['JLN', 'JLO', 'JLP'].
+        multiprocess (bool, optional): Defaults to True.
+
+    Returns:
+        None: None
+    """
     logger = setup_custom_logger('DEM')
     logger.info(f'Initiating Dogger Bank DEM sum calculations for clusters {clusters}')
     
@@ -62,6 +80,16 @@ def calculate_all_DEM_sums(clusters = ['JLN', 'JLO', 'JLP'], multiprocess = True
     return None
 
 def calculate_10_min_damages(clusters = ['JLN', 'JLO', 'JLP'], multiprocess = True):
+    """Calculates damages per 10 min instead of DEM.
+    NOTE that this only works for elevations exactly where we have moment time series results!
+
+    Args:
+        clusters (list, optional): _description_. Defaults to ['JLN', 'JLO', 'JLP'].
+        multiprocess (bool, optional): _description_. Defaults to True.
+
+    Returns:
+        _type_: _description_
+    """
     logger = setup_custom_logger('damage')
     logger.info(f'Initiating Dogger Bank damage calculations for clusters {clusters}')
     
@@ -73,13 +101,25 @@ def calculate_10_min_damages(clusters = ['JLN', 'JLO', 'JLP'], multiprocess = Tr
     return None
 
 def main_calculation_of_DEM_or_damage_cluster_i(cluster, logger, multiprocess = True, DEM = True, TEN_MIN_TO_HR = 6.0):
+    """The main script of calculating all internal DEM sums or 10 min damage of the member elevations
+
+    Args:
+        cluster (str): cluster name
+        logger (logger): logger
+        multiprocess (bool, optional): Defaults to True.
+        DEM (bool, optional): True if DEM, False if damage. Defaults to True.
+        TEN_MIN_TO_HR (float, optional): convertion from 10-min values to hourly values. Defaults to 6.0.
+
+    Returns:
+        None: None
+    """
     
     store_cycles   = True # store rainflow cycles in DEM calculations
     info_str       = "DEM" if DEM else "damage"
     calc_func      = calculate_DEM_case_i if DEM else calculate_damage_case_i
     sectors        = [float(i) for i in range(0,359,15)] # evenly distributed angles in the turbine frame
     DLC_IDs        = ['DLC12', 'DLC24a',  'DLC31', 'DLC41a', 'DLC41b', 'DLC64a', 'DLC64b']
-    DEM_CORRECTION = 1.01
+    DEM_CORRECTION = 1.01 # 1 percent increase in all moment cycles due to lifetime of tower without, not accounted for in the moment time series from GE which was calculated over ~25 years of production
     
     # Get relevant data_paths for DLC and simulation result files  
     data_path              = fr'{os.getcwd()}\data'
@@ -128,8 +168,7 @@ def main_calculation_of_DEM_or_damage_cluster_i(cluster, logger, multiprocess = 
         weighted_table_DLC_i = np.zeros((n_geometries, len(sectors)))
         weights = np.array([probs])
         for sector_idx in range(len(sectors)):
-            # TODO note that the damage should potentially not be multiplied with the conversion factor to hours?!
-            # convert to hour-based values according to "TEN_MIN_TO_HR"
+            # convert to hour-based values according to "TEN_MIN_TO_HR". Might be == 1 if using 10-min based values
             weighted_table_DLC_i[:, [sector_idx]] = np.dot(weights, summary_table_DLC_i[:,:, sector_idx]).T * TEN_MIN_TO_HR  # (n_geometries, 1) -> multiplication of weights by dot product
         
         store_table(summary_table_DLC_i, 

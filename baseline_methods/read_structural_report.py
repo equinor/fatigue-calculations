@@ -6,7 +6,17 @@ import copy
 import re
     
 def identify_pages_with_key_word(file_path, key_word, start_page = 40, end_page = 50):
-    # finds page 
+    """Finds the page number of the first page in PDF file that contains a key word
+
+    Args:
+        file_path (str): r-string path to file
+        key_word (str): key word to match
+        start_page (int, optional): optional starting page of the search. Defaults to 40.
+        end_page (int, optional): optional ending page of the search. Defaults to 50.
+
+    Returns:
+        int: page number. If == -1, search was not successful
+    """
     pages_found = -1
     pdf_reader = PyPDF2.PdfReader(file_path)
     end_page = min(len(pdf_reader.pages), end_page)
@@ -23,9 +33,21 @@ def identify_pages_with_key_word(file_path, key_word, start_page = 40, end_page 
     return pages_found       
     
 def get_text_as_lines_from_page(file_path: str, page_no: int, above_str_ID: str, below_str_ID: str, above_idx_is_at_element = False, add_word : str = None):
+    """Reformats the scraped PDF contents into separate lines
+
+    Args:
+        file_path (str): path
+        page_no (int): page number to scrape
+        above_str_ID (str): identifier of word in row above, defining where the scraping should start
+        below_str_ID (str): identified of word in row below, defining where the scraping should stop
+        above_idx_is_at_element (bool, optional): swithc to say that the above ID is at where we want to start scraping. Defaults to False.
+        add_word (str, optional): allows the addition of a word to the end of each line. Defaults to None.
+
+    Returns:
+        list: list of lines with str 
+    """
     # page no is no in document, not as python indexed int
-    # note that 
-    # TODO allow for info scraped from top sentence and bottom sentence
+    # NOTE should be expanded to allow for info scraped from top sentence and bottom sentence
     
     # Open the PDF file and extract the text from the specified page
     # page no formatted as PDF-page no, not python 0-indexed
@@ -56,7 +78,15 @@ def get_text_as_lines_from_page(file_path: str, page_no: int, above_str_ID: str,
     return lines
 
 def clean_row_elements_with_spaces(row, start_idx):
-    # Generalized formula for finding all neighbouring string columns from start_idx, concatenate / join them with string at start_idx, and remove the neighbours afterwards
+    """Generalized formula for finding all neighbouring string columns from start_idx, concatenate / join them with string at start_idx, and remove the neighbours afterwards
+
+    Args:
+        row (list): list of strings representing a line in the PDF file
+        start_idx (int): index where the cleaning should start looking
+
+    Returns:
+        row: updated row with joined elements
+    """
     end_idx = copy.deepcopy(start_idx)
     while True:
         try: 
@@ -72,7 +102,18 @@ def clean_row_elements_with_spaces(row, start_idx):
     return row
 
 def add_largest_thickness(lines, lines_corrected, line_idx):
-    # TODO improvement - should be handling dicts instead of being very specific in line position
+    """Finding and adding largest thichness of a cross section to the line. The "largest" thickness comes from the fact that wall thickness changes across many elevations.  
+
+    Args:
+        lines (list): original lines of strings
+        lines_corrected (list): corrected lines of strings
+        line_idx (int): determining which line to operate on - which elevation of the table we are looking at
+
+    Returns:
+        float: the largest wall thickness of the turbine of the relevant elevation 
+    """
+    # NOTE improvement - should be handling dicts instead of being very specific in line position
+
     row = lines_corrected[line_idx]
     if line_idx == 0:
         thickness_above = row[5] # no thickness above when upper elevation
@@ -104,6 +145,14 @@ def add_largest_thickness(lines, lines_corrected, line_idx):
     return max(row[5], thickness_above, thickness_below) # largest thickness is chosen from neighbours + current elevation
     
 def find_turbine_and_cluster(structural_report_path):
+    """Finds the turbine name and desing cluster from a structural design report
+
+    Args:
+        structural_report_path (str): r-string of path to the report
+
+    Returns:
+        str, str: turbine name, cluster
+    """
     
     turbine_name = None
     line = get_text_as_lines_from_page(structural_report_path, page_no = 1, above_str_ID = 'Position', below_str_ID = 'Turbine', above_idx_is_at_element = True)
@@ -126,6 +175,16 @@ def find_turbine_and_cluster(structural_report_path):
     return turbine_name, cluster    
 
 def read_utilization_and_store_geometries(structural_report_path, result_dir, STORE = True):
+    """Reads, interprets and calculates main features of the fatigue design reports. Stores the results as an Excel file.
+
+    Args:
+        structural_report_path (str): r-string path to structural report
+        result_dir (str): r-string path to result directory
+        STORE (bool, optional): switch to decide on file storage or not. Defaults to True.
+
+    Returns:
+        str: r-string path to the location of file storage
+    """
     # This is created for reading only the files ending with "{turbine_name} Foundation Structural Design Report.pdf""
     MP_table_page_no = identify_pages_with_key_word(structural_report_path, 'appendix d') + 1
     TP_table_page_no = MP_table_page_no + 1
@@ -167,7 +226,7 @@ def read_utilization_and_store_geometries(structural_report_path, result_dir, ST
     # Correct the remaining lines
     for line_idx, str_line in enumerate(lines):
         row = lines_corrected[line_idx]  
-        row[6] = row[6].replace('.1', '.08') # TODO this is a very stupid manual addition, but it is to correct 27.1 to 27.08 yrs
+        row[6] = row[6].replace('.1', '.08') # Note this is a very stupid manual addition, but it is to correct 27.1 to 27.08 yrs
         row[10] = str(float(row[10]) * 1e6) # Nref is given in millions     
         row[-1] = add_largest_thickness(lines, lines_corrected, line_idx) # for large_thickness
     
@@ -186,9 +245,9 @@ def read_utilization_and_store_geometries(structural_report_path, result_dir, ST
     if STORE:
         df.to_excel(result_path)
         print(f'stored util and geos for {turbine_name}:')
-        
-    # pd.options.display.max_rows = 100 
-    # print(df)
+    else:
+        pd.options.display.max_rows = 100 
+        print(df)
     
     return result_path
     

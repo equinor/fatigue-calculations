@@ -120,7 +120,11 @@ class SN_Curve_qats:
         return qats.fatigue.sn.minersum(stress_ranges[:,0], stress_ranges[:,1], self.SN) #takes ranges, counts, curve as input
         
     def plot_characteristics(self, info_on_plot = True):
-        
+        """Plots how the SN_curve looks as a function of stress and cycles
+
+        Args:
+            info_on_plot (bool, optional): switch to show textual highlights on the plot or not. Defaults to True.
+        """
         
         S_upper = 3
         S_lower = 1
@@ -148,7 +152,6 @@ class SN_Curve_qats:
                 plt.text(0.95, 0.95, f"Fatigue limit: {self.SN.fatigue_strength(1e7):.1f} MPa at {1e7:.1e} cycles", horizontalalignment='right', verticalalignment='center', transform=plt.gca().transAxes, backgroundcolor='#e28743')
                 plt.text(0.95, 0.87, f"Intercept of second linear curve log a2: {loga2:.3f}", horizontalalignment='right', verticalalignment='center', transform=plt.gca().transAxes, backgroundcolor='#e28743')
             else:
-                # Not mandatory - TODO can be removed
                 print(f"Fatigue limit: {fatigue_limit:.1f} MPa at {self.SN.nswitch:.1e} cycles")
                 print(f"Intercept of second linear curve log a2: {loga2:.2f}")  
                 
@@ -167,20 +170,13 @@ if __name__ == '__main__':
     
     
     # The code below is for testing against reported values
-    curve = SN_Curve_qats('dg-air')
-    
-    # curve2 = SN_Curve_qats('d-air')
-    # curve.plot_characteristics(info_on_plot=False)
-    # curve2.plot_characteristics(info_on_plot=False)
-    # plt.legend()
-    # plt.show()
-
-    D = 2 * 3.92
-    t = 84. / 1000
+    curve = SN_Curve_qats('d-cath')
+    D = 8.456
+    t = 72. / 1000
     DFF = 3.0
-    SCF = 1.591
-    grit = 1.072
-    t_eff = 84. / 1000
+    SCF = 1.14
+    grit = 1.00
+    t_eff = 61.
     alpha = max(1.0, (t_eff / curve.t_ref)**curve.k)
     in_out = 'i'
     
@@ -195,13 +191,13 @@ if __name__ == '__main__':
         I = np.pi / 64.0 * (out_D**4 - (D)**4)
         Z = I / (D / 2)
 
-    M = 98.70     
-    N = 11823.2
+    M = 124.5 # MPa    
+    N = 10e6 # cycles
     
     S = M / Z
     Shs = S * SCF * grit
     
     util = curve.miner_sum(np.array([[Shs * alpha, N]])) * DFF
     
-    print(f'M {M:.2f}, S {S:.2f}, Shs {Shs:.2f}, util {util:.2e}')
+    print(f'M {M:.2f}, S {S:.2f}, Shs {Shs:.2f}, alpha = {alpha:.3f}, util {util * 100:.1f}')
     

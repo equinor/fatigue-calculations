@@ -20,8 +20,8 @@ def store_table(table, combined_table, weights, output_file_name, identifier = '
     """
     
     if output_file_name.split('.')[-1] == 'npy':    
-        # TODO alternative check is output_file_name.endswith('.npy')
-        # TODO fastnumpyio.py contains methods where save and load is sped up - to be considered if these functions becomes bottlenecks. As of Feb 2023, they are not.
+        # NOTE alternative check is output_file_name.endswith('.npy')
+        # NOTE fastnumpyio.py contains methods where save and load is sped up - to be considered if these functions becomes bottlenecks. As of Feb 2023, they are not.
         with open(output_file_name, 'wb') as f:
             np.save(f, table)
     

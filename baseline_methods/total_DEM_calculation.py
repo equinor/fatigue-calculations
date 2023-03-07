@@ -6,7 +6,6 @@ from utils.SN_Curve import SN_Curve_qats
 from utils.create_geo_matrix import create_geo_matrix
 from utils.transformations import global_2_compass
 import os
-import sys # for testing / debugging
 
 '''
 Script for calculating the Damage Equivalent Load (DEL).
@@ -35,7 +34,7 @@ The calculation is done by extracting stored tables of "internal DEM sums" from 
 def oldStuff():
     '''
     logger.info(f'Finding overall max DEM of worst geo/elevation for the python method')
-    # TODO here information about the SCF and specific angles needs to be used -> all angles must be evaluated!
+    # NOTE here information about the SCF and specific angles needs to be used -> all angles must be evaluated!
     # The code below is not valid
 
     worst_elevation_idx = divmod(tot_weighted_DEM_all_angles.argmax(), tot_weighted_DEM_all_angles.shape[1])[0] # Finds the row idx of the row containing the element with the lowest value of entire array
@@ -114,7 +113,7 @@ def calculate_total_DEM_sum_cluster_i(cluster, logger):
     member_geometry = pd.read_excel(mbr_geo_path) # .drop(geo_2_drop, axis=0)
     geo_matrix      = create_geo_matrix(member_geometry, sectors) # better matrix to pass to the main function
 
-    DEM_sum_paths_placeholder = fr'{os.getcwd()}\output\all_turbines\{cluster}\DB_{cluster}_' + r'{}_DEM.mat' # TODO check DEM_sum_paths_placeholder placeholder for DLC ID
+    DEM_sum_paths_placeholder = fr'{os.getcwd()}\output\all_turbines\{cluster}\DB_{cluster}_' + r'{}_DEM.mat' 
     out_path_xlsx = fr'\output\all_turbines\{cluster}\{cluster}_combined_DEM.xlsx'
     
     # Store the worst DEM results in a dict for tabular presentation later on
