@@ -22,10 +22,12 @@ if __name__ == '__main__':
     res_base_dir = fr'{os.getcwd()}\output\all_turbines'
     paths_to_lookup_tables = [os.path.join(path, name) for path, subdirs, files in os.walk(res_base_dir) for name in files if 'lookup_table.xlsx' in name]
     
-    # TODO
-    paths_to_lookup_tables = [p for p in paths_to_lookup_tables if 'DA_P57_DE' in p]
-    store_result = False
-    # TODO
+    # Example of calculating lifetime for a single turbine:
+    if False:
+        paths_to_lookup_tables = [p for p in paths_to_lookup_tables if 'DA_P57_DE' in p]
+        store_result = False
+    else:  
+        store_result = True
     
     paths_to_lookup_tables = sort_paths_according_to_turbine_names(paths_to_lookup_tables)
     turbine_names = [return_turbine_name_from_path(path) for path in paths_to_lookup_tables]
@@ -34,7 +36,7 @@ if __name__ == '__main__':
     res = {'turbine_name': [], 'cluster' : [], 'min_lifetime': []}
     for turbine_i, (cluster, turbine_name, lookup_path) in enumerate(zip(clusters, turbine_names, paths_to_lookup_tables)):
         
-        # logger.info(f'[Turbine {turbine_i+1} / {len(turbine_names)}] Lifetime calculations from fatigue table for {cluster} {turbine_name}')
+        logger.info(f'[Turbine {turbine_i+1} / {len(turbine_names)}] Lifetime calculations from fatigue table for {cluster} {turbine_name}')
         df = pd.read_excel(os.path.join(res_base_dir, cluster, turbine_name, 'lookup_table.xlsx'))
         lifetimes = calculate_lifetime_from_fatigue_lookup_table(df)
         min_lifetime = lifetimes.min()

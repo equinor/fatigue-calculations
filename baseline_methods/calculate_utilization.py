@@ -1,13 +1,12 @@
 import numpy as np
 import sys
 import pandas as pd
-# import swifter # can replace 'df.apply' with 'df.swifter.apply' which should improve speed on vectorizable functions. has more overhead than worth it on smaller functions
 import os
 from utils.create_geo_matrix import create_geo_matrix
 from utils.fastnumpyio import load as fastio_load 
 from utils.transformations import global_2_compass
 from utils.setup_custom_logger import setup_custom_logger
-from read_structural_report import read_utilization_and_store_geometries
+from utils.read_structural_report import read_utilization_and_store_geometries
 from multiprocessing import Pool
 from utils.DB_turbine_name_funcs import return_turbine_name_from_path, sort_paths_according_to_turbine_names
 
@@ -15,6 +14,8 @@ from utils.DB_turbine_name_funcs import return_turbine_name_from_path, sort_path
 '''
 Utilization ABOVE SEABED
 For any other elevations - this script captures it
+
+When running this script, please be aware of the booleans deciding (1) to pre-process structural reports, and (2) if the code should be run multiprocessed
 '''
 
 def find_above_below_closest_elevations(df, member_elevations):
@@ -213,12 +214,24 @@ def calculate_utilization_single_turbine(structural_report_geo_path,
     return None
 
 def preprocess_structure_reports(preprocess_reports, structure_file_paths, preprocessed_dir, logger):
+    """Preprocesses the structural reports by reading PDF files, scraping the utilization tables for the MP and TP, and stores the results as pd.DataFrames
+    Returns the paths to the stores tables.
+
+    Args:
+        preprocess_reports (bool): switch to determine if reports should be read and processed or not. If False, the script searches for already pre-preprocessed files and returns their paths. 
+        structure_file_paths (list): list of r-string paths to the structural reports 
+        preprocessed_dir (_type_): _description_
+        logger (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
      
     preprosessed_structure_file_contents_paths = []
     
     if preprocess_reports:
         for filename in structure_file_paths:
-            print('Reading', filename.split(' - ')[1])
+            logger.info(f'Reading {filename.split(" - ")[1]}')
             path = read_utilization_and_store_geometries(filename, preprocessed_dir)
             preprosessed_structure_file_contents_paths.append(path)
             
@@ -227,7 +240,7 @@ def preprocess_structure_reports(preprocess_reports, structure_file_paths, prepr
         # we do not want to pre-process reports -> find all files matching 
         try:
             preprosessed_structure_file_contents_paths = [os.path.join(path, name) for path, subdirs, files in os.walk(preprocessed_dir) for name in files if 'utils_and_geos_from_structure_report' in name]
-            logger.info('Option to load previously preprocessed and stored structural reports chosen. Found and loaded all')
+            logger.info('Option to load previously preprocessed and stored structural reports chosen. Found some and loaded them')
         except:
             logger.info('Error retrieving already preprocessed structural reports - EXITING')
             sys.exit()
@@ -238,7 +251,7 @@ def preprocess_structure_reports(preprocess_reports, structure_file_paths, prepr
 def calculate_utilization_all_turbines( preprosessed_structure_file_contents_paths, 
                                         member_geo_path,
                                         DEM_data_path,
-                                        turbine_result_dir, 
+                                        result_output_dir, 
                                         member_markov_path,
                                         logger,
                                         DFFs = [], 
@@ -255,7 +268,7 @@ def calculate_utilization_all_turbines( preprosessed_structure_file_contents_pat
     args = [(preprosessed_structure_file_contents_paths[i], 
              member_geo_path,
              DEM_data_path,
-             turbine_result_dir, 
+             result_output_dir, 
              member_markov_path,
              logger,
              DFFs
@@ -287,22 +300,23 @@ if __name__ == '__main__':
     turbine_names        = [return_turbine_name_from_path(path) for path in structure_file_paths]
     
     # prepare file paths with formatting for cluster ID and turbine name
-    turbine_result_dir  = fr'{os.getcwd()}\output\all_turbines'
+    result_output_dir  = fr'{os.getcwd()}\output\all_turbines'
     member_geo_path     = fr'{os.getcwd()}\data' +  r'\{}_member_geos.xlsx' # format for cluster
-    DEM_data_path       = turbine_result_dir + r'\{}\{}_combined_DEM.xlsx' # format for (cluster, cluster)
-    member_markov_path  = turbine_result_dir + r'\{}\total_markov_member{}.npy' # format for (cluster, member_no)
+    DEM_data_path       = result_output_dir + r'\{}\{}_combined_DEM.xlsx' # format for (cluster, cluster)
+    member_markov_path  = result_output_dir + r'\{}\total_markov_member{}.npy' # format for (cluster, member_no)
     
     logger.info('Reading structural reports for geometric data and report utilization')
     preprosessed_structure_file_contents_paths = preprocess_structure_reports(preprocess_reports   = False, 
                                                                               structure_file_paths = structure_file_paths,
-                                                                              preprocessed_dir     = fr'{os.getcwd()}\output\all_turbines', 
+                                                                              preprocessed_dir     = result_output_dir, 
                                                                               logger               = logger)
-    
+    print('ok')
+    sys.exit()
     logger.info('Activating utilization results') 
     _ = calculate_utilization_all_turbines( preprosessed_structure_file_contents_paths, 
                                             member_geo_path,
                                             DEM_data_path,
-                                            turbine_result_dir, 
+                                            result_output_dir, 
                                             member_markov_path,
                                             logger,
                                             DFFs = [], 

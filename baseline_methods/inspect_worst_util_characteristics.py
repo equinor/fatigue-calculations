@@ -8,9 +8,9 @@ from utils.DB_turbine_name_funcs import sort_paths_according_to_turbine_names
 Script used for inspecting the various lifetimes and utilizations across all turbines
 '''
 
-def get_top_five_utilizations(turbine_output_dir, member_geo_path):
+def get_top_five_utilizations(result_output_dir, member_geo_path):
     
-    info_from_reports_paths = [os.path.join(path, name) for path, subdirs, files in os.walk(turbine_output_dir) for name in files if 'geos_from_structure_report' in name]
+    info_from_reports_paths = [os.path.join(path, name) for path, subdirs, files in os.walk(result_output_dir) for name in files if 'geos_from_structure_report' in name]
     pd.options.display.max_rows = 500 # Print more rows
     
     res_dict = {'JLN': pd.DataFrame(), 'JLO': pd.DataFrame(), 'JLP': pd.DataFrame()}
@@ -67,15 +67,14 @@ def inspect_details_of_largest_util(df):
 if __name__ == '__main__':
 
     member_geo_path     = fr'{os.getcwd()}\data' +  r'\{}_member_geos.xlsx' # format for cluster
-    turbine_output_dir  = fr'{os.getcwd()}\output\all_turbines'
-    info_from_reports_paths = sort_paths_according_to_turbine_names([os.path.join(path, name) for path, subdirs, files in os.walk(turbine_output_dir) for name in files if 'geos_from_structure_report' in name])
+    result_output_dir   = fr'{os.getcwd()}\output\all_turbines'
+    info_from_reports_paths = sort_paths_according_to_turbine_names([os.path.join(path, name) for path, subdirs, files in os.walk(result_output_dir) for name in files if 'geos_from_structure_report' in name])
     pd.options.display.max_rows = 500 # Print more rows
     
     inspect_dtot = False
+    store_worst = False # selector for storing the worst utils as Excel files. If False, we just inspect and print
     
     if inspect_dtot:
-        
-        store_worst = False # selector for storing the worst. If False, we just inspect the five worst
         
         res_dict = {'JLN': pd.DataFrame(), 'JLO': pd.DataFrame(), 'JLP': pd.DataFrame()}
         for path in info_from_reports_paths:
@@ -102,7 +101,7 @@ if __name__ == '__main__':
                 df_new = pd.concat([df_new, res_dict[key]])
             
             print(df)
-            df_new.to_excel(os.path.join(turbine_output_dir, 'structural_report_Dd_tot_lifetimes.xlsx'), index=False)
+            df_new.to_excel(os.path.join(result_output_dir, 'structural_report_Dd_tot_lifetimes.xlsx'), index=False)
             print('stored design report lifetimes based on TOTAL Dd_tot utilization')
         
         else:
@@ -138,5 +137,7 @@ if __name__ == '__main__':
             df_new = pd.concat([df_new, res_dict[key]])
             
         print(df_new)
-        # df_new.to_excel(os.path.join(turbine_output_dir, 'structural_report_inplace_lifetimes.xlsx'), index=False)
-        # print('stored design report lifetimes based on in place utilization')
+        
+        if store_worst:
+            df_new.to_excel(os.path.join(result_output_dir, 'structural_report_inplace_lifetimes.xlsx'), index=False)
+            print('stored design report lifetimes based on in place utilization')
