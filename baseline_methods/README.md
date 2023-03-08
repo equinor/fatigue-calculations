@@ -4,6 +4,6 @@ This directory contains the RULe method calculations of fatigue damage lookup ta
 
 The order of the scripts is shown in the below image.
 
-![Alt text](baseline_methods\fatigue-calculation-workflow.png?raw=true "Main script workflow")
+![Alt text](fatigue-calculation-workflow.png?raw=true "Main script workflow")
 
 ### Note that it is needed to put the simulation force and moment time series results binary files into data/. It is not tracked on github due to confidentiality.
