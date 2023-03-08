@@ -1,5 +1,9 @@
 # Fatigue calculations done in python
 
-## Run main.py for calculating the damage or DEM
+This directory contains the RULe method calculations of fatigue damage lookup tables. 
 
-## Note that it is needed to put the simulation results binary files into data/. It has not been tracked on git due to size and governance
+The order of the scripts is shown in the below image.
+
+![Alt text](baseline_methods\fatigue-calculation-workflow.png?raw=true "Main script workflow")
+
+### Note that it is needed to put the simulation force and moment time series results binary files into data/. It is not tracked on github due to confidentiality.
