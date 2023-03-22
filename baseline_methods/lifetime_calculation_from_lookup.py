@@ -17,10 +17,37 @@ def calculate_lifetime_from_fatigue_lookup_table(df):
     damage_pr_sector_pr_year = weighted_dmg_pr_yr.sum(axis = 0) # summation of all yearly weighted damages for all DLCs, sectorwise; axis=0
     return 1.0 / damage_pr_sector_pr_year
 
+def read_any_filetype(file):
+    print(file)
+    if file.endswith(('.csv', 'tsv')) :
+        df = pd.read_csv(file)
+    elif file.endswith('.json'):
+        df = pd.read_json(file)
+    elif file.endswith('.xml'):
+        df = pd.read_xml(file)
+    elif file.endswith(('.xls','xlsx')):
+        df = pd.read_excel(file)
+    elif file.endswith('.hdf'):
+        df = pd.read_hdf(file)           
+    elif file.endswith('.sql'):
+        df = pd.read_sql(file)
+    else:
+        raise ValueError(f'Unsupported filetype: {file}')
+    return df
+
 if __name__ == '__main__':
+    
     logger = setup_custom_logger('lifetime')    
-    res_base_dir = fr'{os.getcwd()}\output\all_turbines'
-    paths_to_lookup_tables = [os.path.join(path, name) for path, subdirs, files in os.walk(res_base_dir) for name in files if 'lookup_table.xlsx' in name]
+    
+    file_format = '.json' # xlsx or json
+    file_name_key = 'fatigue_damage' # lookup_table or fatigue_damage
+    file_loc = "blob" # blob or all_turbines
+    
+    res_base_dir = os.path.join( os.getcwd(), "output", file_loc)
+    paths_to_lookup_tables = [os.path.join(path, name) for path, subdirs, files in os.walk(res_base_dir) 
+                              for name in files if ((file_name_key in name) and (file_format) in name)]
+    
+    paths_to_lookup_tables = sort_paths_according_to_turbine_names(paths_to_lookup_tables)
     
     # Example of calculating lifetime for a single turbine:
     if False:
@@ -28,6 +55,8 @@ if __name__ == '__main__':
         store_result = False
     else:  
         store_result = True
+    
+    store_result = False
     
     paths_to_lookup_tables = sort_paths_according_to_turbine_names(paths_to_lookup_tables)
     turbine_names = [return_turbine_name_from_path(path) for path in paths_to_lookup_tables]
@@ -37,7 +66,7 @@ if __name__ == '__main__':
     for turbine_i, (cluster, turbine_name, lookup_path) in enumerate(zip(clusters, turbine_names, paths_to_lookup_tables)):
         
         logger.info(f'[Turbine {turbine_i+1} / {len(turbine_names)}] Lifetime calculations from fatigue table for {cluster} {turbine_name}')
-        df = pd.read_excel(os.path.join(res_base_dir, cluster, turbine_name, 'lookup_table.xlsx'))
+        df = read_any_filetype(lookup_path)
         lifetimes = calculate_lifetime_from_fatigue_lookup_table(df)
         min_lifetime = lifetimes.min()
             
@@ -50,10 +79,12 @@ if __name__ == '__main__':
     df = pd.DataFrame(res)
     print(df)
     
+    storage_path = os.path.join(res_base_dir, "all_lifetimes_from_fatigue_tables{}".format(f"_fromjson.xlsx" if 'json' in file_format else ".xlsx"))
     if store_result:
-        df.to_excel( os.path.join(res_base_dir, 'all_lifetimes_from_fatigue_tables.xlsx'), index=False)
-        logger.info(f'Stored lifetime calc results')
-
+        df.to_excel(storage_path, index=False)
+        logger.info(f'Stored lifetime calc results in {storage_path}')
+    else:
+        logger.info(f'Selector for storing file was selected as False - no file stored')
     
     logger.info(f'Finished lifetime calc for all {len(turbine_names)} turbine_names')
     
