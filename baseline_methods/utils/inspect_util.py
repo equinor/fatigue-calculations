@@ -37,26 +37,43 @@ if __name__ == '__main__':
     info_from_reports_paths = [os.path.join(path, name) for path, subdirs, files in os.walk(turbine_output_dir) for name in files if 'geos_from_structure_report' in name]
     pd.options.display.max_rows = 500 # Print more rows
 
+    # reported total util results
     max_dtot = []
     for path in info_from_reports_paths:
         file = pd.read_excel(path)
         file = file[ file['Dd_tot'] != '-']
         res = file.iloc[ pd.to_numeric(file['Dd_tot']).argmax()]
-        res = res[['turbine_name', 'cluster', 'elevation', 'in_out', 'description', 'in_place_utilization', 'Dd_tot']]
+        res = res[['turbine_name', 'cluster', 'elevation', 'in_out', 'description', 'Dd_tot']]
+        # res.rename(columns = {'Dd_tot': 'worst_Dd_tot'}, inplace = True)
         max_dtot.append( res)
     
-    df_reported = pd.DataFrame(max_dtot)
+    df_reported_Ddtot = pd.DataFrame(max_dtot)
+    
+    # reported inplace results
+    max_inplace = []
+    for path in info_from_reports_paths:
+        file = pd.read_excel(path)
+        file = file[ file['in_place_utilization'] != '-']
+        res = file.iloc[ pd.to_numeric(file['in_place_utilization']).argmax()]
+        res = res[['turbine_name', 'elevation', 'in_out', 'description', 'in_place_utilization']]
+        # res.rename(columns = {'in_place_utilization': 'worst_inplace'}, inplace = True)
+        max_inplace.append( res)
+    
+    df_reported_inplace = pd.DataFrame(max_inplace)
+    
+    # RULe results
     report_vs_rule_comparison_paths = [os.path.join(path, name) for path, subdirs, files in os.walk(turbine_output_dir) for name in files if 'worst_elevation_comparison' in name]
-
     comparison_results = []
     for file in report_vs_rule_comparison_paths:
         res = pd.read_excel(file).iloc[0]   
-        res = res[['turbine_name', 'cluster', 'rule_worst_description', 'rule_worst_elevation', 'rule_worst_utilization']]
+        res = res[['turbine_name', 'rule_worst_description', 'rule_worst_elevation', 'rule_worst_utilization']]
+        # res.rename(columns = {'rule_worst_utilization': 'rule_worst_inplace'}, inplace = True)
         comparison_results.append( res )
         
     df_comparison = pd.DataFrame(comparison_results)
     
-    df_reported.reset_index(drop=True, inplace=True)
+    df_reported_Ddtot.reset_index(drop=True, inplace=True)
     df_comparison.reset_index(drop=True, inplace=True)
-    df_out = pd.concat( [df_reported, df_comparison], axis=1) 
+    df_reported_inplace.reset_index(drop=True, inplace=True)
+    df_out = pd.concat( [df_reported_Ddtot, df_reported_inplace, df_comparison], axis=1) 
     print(df_out) 
