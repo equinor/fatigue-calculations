@@ -11,7 +11,7 @@ def return_turbine_name_from_path(path):
             str: Turbine name
     """
     search_result = re.search(r'\w\w_\w\d\d_\w\w', path) # search for the DB turbine name pattern
-    return search_result.group() if search_result is not None else path 
+    return search_result.group() if search_result is not None else None 
 
 def return_cluster_name_from_path(path):
     """Search for and return the cluster name matching the DBA ILA3 cluster naming format. If not found, the input is returned in its entirety 
@@ -23,7 +23,7 @@ def return_cluster_name_from_path(path):
             str: Cluster name
     """
     search_result = re.search(r'JL\w', path) # search for the DB turbine name pattern
-    return search_result.group() if search_result is not None else path 
+    return search_result.group() if search_result is not None else None 
 
 def sort_paths_according_to_turbine_names(paths):
     """Takes a list of paths to some turbine data, and sort the paths naturally according to the turbine names
