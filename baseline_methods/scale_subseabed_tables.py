@@ -107,12 +107,6 @@ if __name__ == '__main__':
     logger = setup_custom_logger(f'sub-seabed_scaler')
     rescale = True
     
-    """
-    logger.error('Running this code will alter fatigue tables that might already been adjusted. This leads to corrupted fatigue tables')
-    logger.error('Please reconsider why you are running this script, and ensure that the scaling is being done on the original fatigue table')
-    sys.exit()
-    """
-    
     if rescale and os.path.isfile(worst_util_summary_path.replace(".xlsx", "_subseabed_scaled.xlsx")):
         logger.info(f"Subseabed scaled util summary already found. Removing file before calculating sub seabed scaled summary table again")
         os.remove( worst_util_summary_path.replace(".xlsx", "_subseabed_scaled.xlsx") )
