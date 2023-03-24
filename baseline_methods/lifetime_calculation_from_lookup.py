@@ -18,7 +18,6 @@ def calculate_lifetime_from_fatigue_lookup_table(df):
     return 1.0 / damage_pr_sector_pr_year
 
 def read_any_filetype(file):
-    print(file)
     if file.endswith(('.csv', 'tsv')) :
         df = pd.read_csv(file)
     elif file.endswith('.json'):
@@ -35,51 +34,63 @@ def read_any_filetype(file):
         raise ValueError(f'Unsupported filetype: {file}')
     return df
 
+def filter_paths_based_on_subseabed_scaling(paths):
+    # after subseabed scaling of fatigue tables, there will be occurences of turbines with multiple lookup tables
+    # we only want the paths with subseabed_scaling match if they exist
+    
+    registry = {}
+    turbine_names = [return_turbine_name_from_path(p) for p in paths]
+    for turbine_name, p in zip(turbine_names, paths):
+        if turbine_name in registry:
+            # already in registry - if new path contains subseabed then add that one instead
+            if "subseabed" in p:
+                registry[turbine_name] = p
+        else:
+            # add at least one path to the registry
+            registry[turbine_name] = p
+        
+    return list(registry.values())
+
 if __name__ == '__main__':
     
     logger = setup_custom_logger('lifetime')    
     
     file_format = '.json' # xlsx or json
-    file_name_key = 'fatigue_damage' # lookup_table or fatigue_damage
-    file_loc = "blob" # blob or all_turbines
+    file_name_key = 'lookup_table' # lookup_table or fatigue_damage, depending on naming convention going into production (to be similar to other wind parks)
+    file_loc = "all_turbines" # blob or all_turbines
     
     res_base_dir = os.path.join( os.getcwd(), "output", file_loc)
-    paths_to_lookup_tables = [os.path.join(path, name) for path, subdirs, files in os.walk(res_base_dir) 
-                              for name in files if ((file_name_key in name) and (file_format) in name)]
-    
+    if not os.path.exists(res_base_dir):
+        os.makedirs(res_base_dir)
+        
+    # retrieve lookup table paths, sort according to turbine name, and select those that have been subseabed_scaled if there exists multiple lookup_tables
+    paths_to_lookup_tables = [os.path.join(path, name) for path, subdirs, files in os.walk(res_base_dir) for name in files if ((file_name_key in name) and (file_format) in name)]
     paths_to_lookup_tables = sort_paths_according_to_turbine_names(paths_to_lookup_tables)
+    paths_to_lookup_tables = filter_paths_based_on_subseabed_scaling(paths_to_lookup_tables)
     
-    # Example of calculating lifetime for a single turbine:
-    if False:
-        paths_to_lookup_tables = [p for p in paths_to_lookup_tables if 'DA_P57_DE' in p]
-        store_result = False
-    else:  
-        store_result = True
-    
-    store_result = False
-    
-    paths_to_lookup_tables = sort_paths_according_to_turbine_names(paths_to_lookup_tables)
     turbine_names = [return_turbine_name_from_path(path) for path in paths_to_lookup_tables]
     clusters = [return_cluster_name_from_path(path) for path in paths_to_lookup_tables]
     
-    res = {'turbine_name': [], 'cluster' : [], 'min_lifetime': []}
+    store_result = True
+    
+    res = {'turbine_name': [], 'cluster' : [], 'lifetime': []}
     for turbine_i, (cluster, turbine_name, lookup_path) in enumerate(zip(clusters, turbine_names, paths_to_lookup_tables)):
         
         logger.info(f'[Turbine {turbine_i+1} / {len(turbine_names)}] Lifetime calculations from fatigue table for {cluster} {turbine_name}')
         df = read_any_filetype(lookup_path)
         lifetimes = calculate_lifetime_from_fatigue_lookup_table(df)
-        min_lifetime = lifetimes.min()
+        lifetime = lifetimes.min()
             
         res['turbine_name'].append(turbine_name)
         res['cluster'].append(cluster)
-        res['min_lifetime'].append(min_lifetime)
+        res['lifetime'].append(lifetime)
         
-        logger.info(f'[{turbine_name}] = util @ 27.08 yrs = {27.08 / min_lifetime * 100:.2f}, lifetime = {min_lifetime:.2f} years')
+        logger.info(f'[{turbine_name}] = util @ 27.08 yrs = {27.08 / lifetime * 100.0:.2f}, lifetime = {lifetime:.2f} years')
         
     df = pd.DataFrame(res)
     print(df)
     
-    storage_path = os.path.join(res_base_dir, "all_lifetimes_from_fatigue_tables{}".format(f"_fromjson.xlsx" if 'json' in file_format else ".xlsx"))
+    storage_path = os.path.join(res_base_dir, "all_lifetimes_from_fatigue_tables.xlsx")
     if store_result:
         df.to_excel(storage_path, index=False)
         logger.info(f'Stored lifetime calc results in {storage_path}')

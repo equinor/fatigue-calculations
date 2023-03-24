@@ -30,10 +30,9 @@ def calculate_DEM_case_i(binary_file_i, description_file_i, sectors, geo_matrix,
     
     content_reshaped = read_bladed_file(binary_file_i, description_file_i) # (n,m) numpy array with n = no. of quantities of data,  m = no. of timesteps for each data quantity 
     DEM_sum = np.zeros((len(geo_matrix), len(sectors)))
-    
     for geo_idx, geo_dict in geo_matrix.items():
         
-        pos = (geo_dict['mx_col'] - 1, geo_dict['my_col'] - 1, geo_dict['fz_col'] - 1) # columns in DLC file to collect moments and forces, using -1 to fit Python indexing
+        pos = (int(geo_dict['mx_col'] - 1), int(geo_dict['my_col'] - 1), int(geo_dict['fz_col'] - 1)) # columns in DLC file to collect moments and forces, using -1 to fit Python indexing
         moments_x_timeseries = content_reshaped[[pos[0]], :] # Moments as (1, timesteps) array - hence the [[],:] type slice
         moments_y_timeseries = content_reshaped[[pos[1]], :] # Moments as (1, timesteps) array
 
@@ -54,7 +53,7 @@ def calculate_DEM_case_i(binary_file_i, description_file_i, sectors, geo_matrix,
             Calculate the sum of ranges and counts ("internal DEM sum") of the point at (geo_idx, sector_idx) by
             for moment_range, count in cycles_sector_j:
               res += count * (moment_range)**wohler
-            For efficiency we use dot product instead of summing 128 elements each loop 
+            For efficiency we use dot product instead of summing n_rainflow_bins elements each loop 
             '''
             
             moment_ranges_sector_j = cycles_sector_j[:, [0]]

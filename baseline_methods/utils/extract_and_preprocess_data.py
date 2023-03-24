@@ -19,9 +19,10 @@ def extract_and_preprocess_data(DLC_file, DLC_ID, cluster_ID, sim_res_cluster_fo
     n_cases = df.shape[0]
     
     # Assign and store the file locations for the current DLC
+    # Be aware of that the creation of the "path" column in the DLC file looks as if it was made for Windows. MacOS uses different backslashes
     df = df.assign(filenames = df.apply(lambda x: x['simulation_name'].replace('XXX', cluster_ID), axis = 1))
-    df = df.assign(results_files = df.apply(lambda x: os.path.join(sim_res_cluster_folder +  x['path'], x['filenames']) + '.$105', axis = 1))
-    df = df.assign(descr_files = df.apply(lambda x: os.path.join(sim_res_cluster_folder +  x['path'], x['filenames']) + '.%105', axis = 1)) 
+    df = df.assign(results_files = df.apply(lambda x: os.path.join(sim_res_cluster_folder, os.path.join( *x["path"].split("\\")), x['filenames'] + '.$105'), axis = 1))
+    df = df.assign(descr_files = df.apply(lambda x: os.path.join(sim_res_cluster_folder, os.path.join( *x["path"].split("\\")), x['filenames'] + '.%105'), axis = 1)) 
     
     # Sneak peek one of the files to find the number of timesteps in order to pre allocate arrays and assist some functions
     n_timesteps = read_bladed_file(df.results_files[0], df.descr_files[0]).shape[1]

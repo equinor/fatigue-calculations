@@ -20,10 +20,17 @@ Implementation of in-place damage and DEM calculation of the Dogger Bank wind tu
 - Use the stress cycles together with an SN curve and calculate the linear accumulated damage with the Palmgren-Miner rule to get total damage 
 - This damage can be stored as a binary file and used for lifetime calculations etc. 
 '''
+def create_dir_if_not_existing(dir):
+    if not os.path.exists(dir):
+        os.makedirs(dir)
 
 def check_and_retrieve_output_dirs(cluster, current_working_directory = os.getcwd()):
     
-    dirs = [fr'{os.getcwd()}\output', fr'{os.getcwd()}\output\all_turbines', fr'{os.getcwd()}\output\all_turbines\{cluster}', fr'{os.getcwd()}\output\all_turbines\{cluster}\markov']
+    dirs = [os.path.join(os.getcwd(), "output"), 
+            os.path.join(os.getcwd(), "output", "all_turbines"), 
+            os.path.join(os.getcwd(), "output", "all_turbines", f"{cluster}"), 
+            os.path.join(os.getcwd(), "output", "all_turbines", f"{cluster}", "markov")
+            ]
     
     for dir in dirs:
         if not os.path.exists(dir):
@@ -122,14 +129,14 @@ def main_calculation_of_DEM_or_damage_cluster_i(cluster, logger, multiprocess = 
     DEM_CORRECTION = 1.01 # 1 percent increase in all moment cycles due to lifetime of tower without, not accounted for in the moment time series from GE which was calculated over ~25 years of production
     
     # Get relevant data_paths for DLC and simulation result files  
-    data_path              = fr'{os.getcwd()}\data'
-    DLC_file_path          = data_path +  fr'\Doc-0081164-HAL-X-13MW-DGB-A-OWF-Detailed DLC List-Fatigue Support Structure Load Assessment_Rev7.0.xlsx'
-    simulation_result_dir  = data_path +  fr'\Doc-0089427-HAL-X-13MW DB-A OWF-ILA3_{cluster}-model_fatigue_timeseries_all_elevations'
-    member_geometries_path = data_path +  fr'\{cluster}_member_geos.xlsx'
+    data_path              = os.path.join(os.getcwd(), 'data')
+    DLC_file_path          = os.path.join(data_path, f'Doc-0081164-HAL-X-13MW-DGB-A-OWF-Detailed DLC List-Fatigue Support Structure Load Assessment_Rev7.0.xlsx')
+    simulation_result_dir  = os.path.join(data_path, f'Doc-0089427-HAL-X-13MW DB-A OWF-ILA3_{cluster}-model_fatigue_timeseries_all_elevations')
+    member_geometries_path = os.path.join(data_path, f'{cluster}_member_geos.xlsx')
     
     geometry     = pd.read_excel(member_geometries_path)
     n_geometries = geometry.shape[0]
-    geo_matrix   = create_geo_matrix(geometry, sectors) # better matrix to pass to the main function
+    geo_matrix   = create_geo_matrix(geometry, sectors) # summary of the geometric properties. Note that when reading from Excel file, MacOS needs the file to be saved in order to run formulas that shall be read as numbers in Python. 
 
     out_dir, cycles_dir = check_and_retrieve_output_dirs(cluster)
     
@@ -140,8 +147,10 @@ def main_calculation_of_DEM_or_damage_cluster_i(cluster, logger, multiprocess = 
     for DLC in DLC_IDs:
         # Collect relevant DLC data, find the probabilities of occurence of each case and the number of cases
         df, probs, n_cases, _ = extract_and_preprocess_data(DLC_file_path, DLC, cluster, simulation_result_dir)
-        cycle_storage_path    = cycles_dir + fr'\DB_{cluster}_{DLC}' + 'cycles_member{}'
-        output_file_name      = out_dir + fr'\all_turbines\{cluster}\DB_{cluster}_{DLC}_{info_str}.mat'
+        cycle_storage_path    = os.path.join(cycles_dir, f"DB_{cluster}_{DLC}")
+        create_dir_if_not_existing(cycle_storage_path)
+        cycle_storage_path    = os.path.join(cycle_storage_path, "cycles_member{}")
+        output_file_name      = os.path.join(out_dir, "all_turbines", cluster, f"DB_{cluster}_{DLC}_{info_str}.mat")
         summary_table_DLC_i   = np.zeros((n_cases, n_geometries, len(sectors))) # pre-allocate output matrix of the current DLC
         
         logger.info(f'Starting {info_str} calculation on {cluster} {DLC} with {n_cases} cases')
@@ -184,4 +193,4 @@ def main_calculation_of_DEM_or_damage_cluster_i(cluster, logger, multiprocess = 
 
 if __name__ == '__main__':
     
-    _ = calculate_all_DEM_sums(clusters = ['JLO'], multiprocess = True)
+    _ = calculate_all_DEM_sums(multiprocess=True)

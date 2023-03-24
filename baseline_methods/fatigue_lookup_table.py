@@ -10,7 +10,7 @@ import sys
 import os
 from multiprocessing import Pool
 from parse_markov_matrices import get_files_in_dir_matching_identifier_natsorted
-from utils.DB_turbine_name_funcs import return_turbine_name_from_path, sort_paths_according_to_turbine_names, return_cluster_name_from_path
+from utils.DB_turbine_name_funcs import return_turbine_name_from_path, return_cluster_name_from_path
 
 
 '''
@@ -98,7 +98,7 @@ def calculate_damage_from_DEM_scale(sectors, cluster, turbine_name, res_base_dir
         DLC_file_df = pd.read_excel(DLC_file_path, sheet_name = DLC)
         n_cases = DLC_file_df.shape[0]
         
-        paths_to_markov_cycles_closest_member = get_files_in_dir_matching_identifier_natsorted(cycle_storage_dir = os.path.join(res_base_dir, cluster, 'markov'), identifier = fr'DB_{cluster}_{DLC}cycles_member{closest_member_no}')
+        paths_to_markov_cycles_closest_member = get_files_in_dir_matching_identifier_natsorted(cycle_storage_dir = os.path.join(res_base_dir, cluster, 'markov'), id_tup = (f"DB_{cluster}_{DLC}", f"cycles_member{closest_member_no}"))
         DFF = worst_elevation_df['rule_DFF']
         
         args = [(paths_to_markov_cycles_closest_member[case_i], 
@@ -129,13 +129,13 @@ if __name__ == '__main__':
     logger = setup_custom_logger('lookup_table')
     logger.info('Initiating damage calculation and fatigue lookup table creation + storage')
     sectors  = [float(i) for i in range(0, 359, 15)]
-    res_base_dir = fr'{os.getcwd()}\output\all_turbines'
+    res_base_dir = os.path.join(os.getcwd(), "output", "all_turbines")
     paths_to_worst_elevation_comparisons = [os.path.join(path, name) for path, subdirs, files in os.walk(res_base_dir) for name in files if 'worst_elevation_comparison' in name]
     
     # Final input to calculations
     turbine_names = [return_turbine_name_from_path(path) for path in paths_to_worst_elevation_comparisons]
     clusters = [return_cluster_name_from_path(path) for path in paths_to_worst_elevation_comparisons]
-    DLC_file_path = fr'{os.getcwd()}\data' + r'\Doc-0081164-HAL-X-13MW-DGB-A-OWF-Detailed DLC List-Fatigue Support Structure Load Assessment_Rev7.0.xlsx'
+    DLC_file_path = os.path.join(os.getcwd(), "data", "Doc-0081164-HAL-X-13MW-DGB-A-OWF-Detailed DLC List-Fatigue Support Structure Load Assessment_Rev7.0.xlsx")
     
     for turbine_i, (cluster, turbine_name) in enumerate(zip(clusters, turbine_names)):
         logger.info(f'[Turbine {turbine_i+1} / {len(turbine_names)} - {cluster} {turbine_name}] Calculating fatigue table')
@@ -145,7 +145,7 @@ if __name__ == '__main__':
                                                                 res_base_dir       = res_base_dir,
                                                                 DLC_file_path      = DLC_file_path, 
                                                                 logger             = logger, 
-                                                                multiprocess_cases = False)
+                                                                multiprocess_cases = True)
         
         overall_fatigue_table_path = os.path.join(res_base_dir, cluster, turbine_name, 'lookup_table.xlsx')
         overall_fatigue_table.to_excel(overall_fatigue_table_path, index = False)

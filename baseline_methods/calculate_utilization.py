@@ -45,7 +45,7 @@ def return_worst_elevation(df):
     df_res = df_res[ ['turbine_name', 'cluster', 'description', 'elevation', 'in_out', 'in_place_utilization'] ].copy()
     
     df_res.rename(columns = {'description': 'reported_worst_description',
-                             'elevation'  : 'reported_worst_description',
+                             'elevation'  : 'reported_worst_elevation',
                              'in_place_utilization': 'reported_utilization'}, inplace = True)
     
     # calculate the rule utilization at this elevation 
@@ -56,6 +56,7 @@ def return_worst_elevation(df):
     rule_worst_elevation_idx = all_rule_utilizations.argmax()
     df_res['rule_worst_description'] = df.iloc[rule_worst_elevation_idx]['description']
     df_res['rule_worst_elevation'] = df.iloc[rule_worst_elevation_idx]['elevation']
+    df_res['rule_worst_in_out'] = df.iloc[rule_worst_elevation_idx]['in_out']
     df_res['rule_worst_utilization'] = all_rule_utilizations.iloc[rule_worst_elevation_idx]
     
     return df_res
@@ -199,16 +200,16 @@ def calculate_utilization_single_turbine(structural_report_geo_path,
              'rule_DFF', 'in_place_utilization', 'DEM_scaling_factor', 'member_closest',
              'elevation_closest', 'closest_sector_idx', 'ValType', 'turbine_name', 'cluster']].copy()
     
-    result_path = result_path + fr'\{cluster}\{turbine_name}'
+    result_path = os.path.join(result_path, cluster, turbine_name)
     if not os.path.exists(result_path):
         os.makedirs(result_path)
     
-    df_path = result_path + fr'\util_rule_vs_report.xlsx' 
+    df_path = os.path.join(result_path, "util_rule_vs_report.xlsx") 
     df.to_excel(df_path, index = False)
     pd.options.display.max_rows = 100 # Print more rows
     
     df_res = return_worst_elevation(df)
-    df_res_path = result_path + fr'\util_worst_elevation_comparison.xlsx' 
+    df_res_path = os.path.join(result_path, "util_worst_elevation_comparison.xlsx")
     df_res.to_excel(df_res_path, index = False)
     
     return None
@@ -220,11 +221,11 @@ def preprocess_structure_reports(preprocess_reports, structure_file_paths, prepr
     Args:
         preprocess_reports (bool): switch to determine if reports should be read and processed or not. If False, the script searches for already pre-preprocessed files and returns their paths. 
         structure_file_paths (list): list of r-string paths to the structural reports 
-        preprocessed_dir (_type_): _description_
-        logger (_type_): _description_
+        preprocessed_dir (str): directory where the preprocessed structural reports shall be stored
+        logger (logger): logger
 
     Returns:
-        _type_: _description_
+        list: strings with paths of all the preprocessed reports, sorted according to turbine names
     """
      
     preprosessed_structure_file_contents_paths = []
@@ -240,7 +241,7 @@ def preprocess_structure_reports(preprocess_reports, structure_file_paths, prepr
         # we do not want to pre-process reports -> find all files matching 
         try:
             preprosessed_structure_file_contents_paths = [os.path.join(path, name) for path, subdirs, files in os.walk(preprocessed_dir) for name in files if 'utils_and_geos_from_structure_report' in name]
-            logger.info('Option to load previously preprocessed and stored structural reports chosen. Found some and loaded them')
+            logger.info(f'Option to load previously preprocessed and stored structural reports chosen. Found {len(preprosessed_structure_file_contents_paths)} files and returned their paths')
         except:
             logger.info('Error retrieving already preprocessed structural reports - EXITING')
             sys.exit()
@@ -276,16 +277,15 @@ def calculate_utilization_all_turbines( preprosessed_structure_file_contents_pat
     
     if multiprocess_turbines:
         logger.info(f'Calculating utilization for all turbines multiprocessed')
-        n_cpus_in_mp = int(os.cpu_count()) # NOTE change parameter to <= cpu_count if laptop capacity is limited
+        n_cpus_in_mp = int(os.cpu_count())
         with Pool(n_cpus_in_mp) as p:
             _ = p.starmap(calculate_utilization_single_turbine, args)
     
     else:
         for i, filename in enumerate(preprosessed_structure_file_contents_paths):
-            dash = '\\'
-            logger.info(f'[{i+1}/{len(preprosessed_structure_file_contents_paths)}] Calculating utilization for {filename.split(dash)[-2]}')
+            logger.info(f'[{i+1}/{len(preprosessed_structure_file_contents_paths)}] Calculating utilization for {os.path.normpath(filename).split(os.path.sep)[-2]}')
             _ = calculate_utilization_single_turbine(*args[i])
-            logger.info(f'[{i+1}/{len(preprosessed_structure_file_contents_paths)}] Ended utilization script for turbine {filename.split(dash)[-2]}')
+            logger.info(f'[{i+1}/{len(preprosessed_structure_file_contents_paths)}] Ended utilization script for turbine {os.path.normpath(filename).split(os.path.sep)[-2]}')
 
     return None 
 
@@ -294,24 +294,25 @@ if __name__ == '__main__':
     logger = setup_custom_logger('utilization')
        
     # extract directory with structure reports
-    structural_file_dir  = os.getcwd() + r'\data\structural_specific_reports'
+    structural_file_dir  = os.path.join(os.getcwd(), "data", "structural_specific_reports") 
     structure_file_paths = [os.path.join(path, name) for path, subdirs, files in os.walk(structural_file_dir) for name in files if 'sl_' not in name.lower()] # do not include spares that are named SL
     structure_file_paths = sort_paths_according_to_turbine_names(structure_file_paths)
     turbine_names        = [return_turbine_name_from_path(path) for path in structure_file_paths]
     
     # prepare file paths with formatting for cluster ID and turbine name
-    result_output_dir  = fr'{os.getcwd()}\output\all_turbines'
-    member_geo_path     = fr'{os.getcwd()}\data' +  r'\{}_member_geos.xlsx' # format for cluster
-    DEM_data_path       = result_output_dir + r'\{}\{}_combined_DEM.xlsx' # format for (cluster, cluster)
-    member_markov_path  = result_output_dir + r'\{}\total_markov_member{}.npy' # format for (cluster, member_no)
+    result_output_dir   = os.path.join(os.getcwd(), "output", "all_turbines")
+    member_geo_path     = os.path.join(os.getcwd(), "data", "{}_member_geos.xlsx") 
+    DEM_data_path       = os.path.join(result_output_dir, "{}", "{}_combined_DEM.xlsx") 
+    member_markov_path  = os.path.join(result_output_dir, "{}", "total_markov_member{}.npy") 
     
     logger.info('Reading structural reports for geometric data and report utilization')
+    
+    # NOTE that the default report preprocessing is set to False. The first time this script is run, the parameter needs to be set to True
     preprosessed_structure_file_contents_paths = preprocess_structure_reports(preprocess_reports   = False, 
                                                                               structure_file_paths = structure_file_paths,
                                                                               preprocessed_dir     = result_output_dir, 
                                                                               logger               = logger)
-    print('ok')
-    sys.exit()
+
     logger.info('Activating utilization results') 
     _ = calculate_utilization_all_turbines( preprosessed_structure_file_contents_paths, 
                                             member_geo_path,
@@ -320,6 +321,6 @@ if __name__ == '__main__':
                                             member_markov_path,
                                             logger,
                                             DFFs = [], 
-                                            multiprocess_turbines = False)
+                                            multiprocess_turbines = True)
 
     logger.info('Utilization complete')

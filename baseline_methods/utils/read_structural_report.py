@@ -236,14 +236,14 @@ def read_utilization_and_store_geometries(structural_report_path, result_dir, ST
             dict_df[col].append(line[col_idx])
     
     df = pd.DataFrame(dict_df)
-    result_dir = result_dir + fr'\{cluster}\{turbine_name}'
+    result_dir = os.path.join(result_dir, cluster, turbine_name)
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
     
-    result_path = result_dir + fr'\utils_and_geos_from_structure_report.xlsx'
+    result_path = os.path.join(result_dir, "utils_and_geos_from_structure_report.xlsx")
     if STORE:
         df.to_excel(result_path)
-        print(f'stored util and geos for {turbine_name}:')
+        print(f'Stored util and geos for {turbine_name}')
     else:
         pd.options.display.max_rows = 100 
         print(df)
@@ -252,6 +252,6 @@ def read_utilization_and_store_geometries(structural_report_path, result_dir, ST
     
 if __name__ == '__main__':
     
-    structural_report_path = os.getcwd() + r'\data\structural_specific_reports\P0061-C1224-WP03-REP-002-F - DA_J01_JC Foundation Structural Design Report.pdf'
-    result_dir = os.path.join(os.getcwd(), r'output\all_turbines')
+    structural_report_path = os.path.join(os.getcwd(), "data", "structural_specific_reports", "P0061-C1224-WP03-REP-002-F - DA_J01_JC Foundation Structural Design Report.pdf")
+    result_dir = os.path.join(os.getcwd(), "output", "all_turbines")
     path = read_utilization_and_store_geometries(structural_report_path, result_dir, STORE = False)

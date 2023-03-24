@@ -6,11 +6,16 @@ from multiprocessing import Pool
 from utils.fastnumpyio import load as fastio_load 
 from utils.fastnumpyio import save as fastio_save
 from natsort import natsorted
+import sys
 
-def get_files_in_dir_matching_identifier_natsorted(cycle_storage_dir: str, identifier: str):
+def get_files_in_dir_matching_identifier_natsorted(cycle_storage_dir: str, id_tup: tuple):
     # Files are found as strings, so Python sorts them lexicographical where ['10', '1', '2'].sort() = ['1', '10', '2' ]
-    # natsort sorts like expected: ['1', '2', '10']   
-    return natsorted([(cycle_storage_dir + '\\' + file_name) for file_name in os.listdir(cycle_storage_dir) if (identifier in file_name)])
+    # natsort sorts like expected: ['1', '2', '10']     
+    DLC_id, cycle_id = id_tup
+    candidate_paths = [os.path.join(path, name) for path, subdirs, files in os.walk(cycle_storage_dir) for name in files]
+    return natsorted([p for p in candidate_paths if ( (DLC_id in p) and (cycle_id in p) )])
+    
+    # return natsorted([(cycle_storage_dir + '\\' + file_name) for file_name in os.listdir(cycle_storage_dir) if (id_tup in file_name)])
 
 def open_npy_cycle_file_and_scale_counts(file, weight):
     """return the array with scaled counts according to weights and 10min->yr factor
@@ -47,7 +52,7 @@ def get_all_moment_cycles_weighted_by_probs_member_i(cycle_storage_dir: str,
         np.ndarray: of all cycles: for all sectors with each single rainflow counting observed, scaled for the count probability
     """
     # First concatenate all cycles for all cases within each DLC [scaled_markov_DLC_i], then concatenate all cycles for all DLCs [all_ranges] 
-    DLC_file   = fr'{os.getcwd()}\data' +  r'\Doc-0081164-HAL-X-13MW-DGB-A-OWF-Detailed DLC List-Fatigue Support Structure Load Assessment_Rev7.0.xlsx'
+    DLC_file   = os.path.join(os.getcwd(), "data", "Doc-0081164-HAL-X-13MW-DGB-A-OWF-Detailed DLC List-Fatigue Support Structure Load Assessment_Rev7.0.xlsx" )
     all_cycles = [] # To store all the cycles : [[ranges, counts]] for each sector, for all DLCs
     
     for DLC in DLC_IDs:
@@ -55,8 +60,8 @@ def get_all_moment_cycles_weighted_by_probs_member_i(cycle_storage_dir: str,
         DLC_info_df = pd.read_excel(DLC_file, sheet_name = DLC)
         probabilities = list(DLC_info_df.Tot_Prob_in_10_percent_idling_scenario_hr_year) # Extract directly from excel
         
-        # Collect file paths of prepared cycles from main script previously. Scale all counts according to prob of occurence of case
-        file_paths_DLC_i = get_files_in_dir_matching_identifier_natsorted(cycle_storage_dir, identifier = fr'DB_{cluster}_{DLC}cycles_member{member}')
+        # Collect file paths of prepared cycles from main script previously. When opening, scale all counts according to prob of occurence of case
+        file_paths_DLC_i = get_files_in_dir_matching_identifier_natsorted(cycle_storage_dir, id_tup = (f"DB_{cluster}_{DLC}", f"cycles_member{member}"))
         multiprocess_args = [(file_paths_DLC_i[i], 
                               probabilities[i]
                              ) for i in range(len(file_paths_DLC_i))]
@@ -86,11 +91,11 @@ def parse_markov_files_cluster_i(cluster, logger, DLC_IDs = ['DLC12', 'DLC24a', 
     Returns:
         None: None
     """
-    out_dir = fr'{os.getcwd()}\output'
-    cycles_dir = out_dir + fr'\all_turbines\{cluster}\markov'
-    mbr_geos = pd.read_excel(fr'{os.getcwd()}\data\{cluster}_member_geos.xlsx')
+    out_dir = os.path.join(os.getcwd(), "output", "all_turbines") 
+    res_path = os.path.join(out_dir, cluster, "total_markov_member{}.npy")
+    cycles_dir = os.path.join(out_dir, cluster, "markov")  
+    mbr_geos = pd.read_excel( os.path.join(os.getcwd(), "data", f"{cluster}_member_geos.xlsx") ) 
     member_2_elevation_map = {k: v for k, v in zip(mbr_geos[f'member_id'], mbr_geos['elevation'])}
-    res_path = fr'{os.getcwd()}\output\all_turbines\{cluster}\total_markov_member' + '{}.npy'
     
     logger.info(f'Starting markov parsing for {cluster}, {len(member_2_elevation_map)} members @ {list(member_2_elevation_map.values())} mLat')
     for mbr_idx, member in enumerate( list(member_2_elevation_map.keys()) ):

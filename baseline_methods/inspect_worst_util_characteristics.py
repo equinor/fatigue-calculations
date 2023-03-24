@@ -66,13 +66,13 @@ def inspect_details_of_largest_util(df):
          
 if __name__ == '__main__':
 
-    member_geo_path     = fr'{os.getcwd()}\data' +  r'\{}_member_geos.xlsx' # format for cluster
-    result_output_dir   = fr'{os.getcwd()}\output\all_turbines'
+    member_geo_path     = os.path.join(os.getcwd(), "data", "{}_member_geos.xlsx") # format for cluster
+    result_output_dir   = os.path.join(os.getcwd(), "output", "all_turbines")
     info_from_reports_paths = sort_paths_according_to_turbine_names([os.path.join(path, name) for path, subdirs, files in os.walk(result_output_dir) for name in files if 'geos_from_structure_report' in name])
     pd.options.display.max_rows = 500 # Print more rows
     
-    inspect_dtot = False
-    store_worst = False # selector for storing the worst utils as Excel files. If False, we just inspect and print
+    inspect_dtot = True
+    store_worst = True # selector for storing the worst utils as Excel files. If False, we just inspect and print
     
     if inspect_dtot:
         

@@ -4,7 +4,6 @@ import pandas as pd
 from utils.setup_custom_logger import setup_custom_logger
 from utils.SN_Curve import SN_Curve_qats
 from utils.create_geo_matrix import create_geo_matrix
-from utils.transformations import global_2_compass
 import os
 
 '''
@@ -30,91 +29,19 @@ The calculation is done by extracting stored tables of "internal DEM sums" from 
             - T_lifetime: no. of years the equivalent moment is calculated over
             - N_eq; the number of counts / year the equivalent load is calculated over 
 '''
- 
-def oldStuff():
-    '''
-    logger.info(f'Finding overall max DEM of worst geo/elevation for the python method')
-    # NOTE here information about the SCF and specific angles needs to be used -> all angles must be evaluated!
-    # The code below is not valid
-
-    worst_elevation_idx = divmod(tot_weighted_DEM_all_angles.argmax(), tot_weighted_DEM_all_angles.shape[1])[0] # Finds the row idx of the row containing the element with the lowest value of entire array
-    worst_overall_sector_idx = tot_weighted_DEM_all_angles[worst_elevation_idx].argmax()
-    mLAT_at_worst_elevation = geo_matrix[worst_elevation_idx]['elevation']
-    
-    # actual_angles_worst_el = geometry[worst_elevation_idx]['actual_angles']
-    # compass_angles_worst_el = global_2_compass(actual_angles_worst_el)
-    actual_angles_worst_el = sectors[:]
-    compass_angles_worst_el = compass_angles[:]
-    
-    worst_overall_DEM = (T_lifetime / N_equivalent * tot_weighted_DEM_all_angles[worst_elevation_idx].max() )**(1 / wohler_exp)
-    print(f'Overall largest DEM found on:')
-    print(f'Elevation {mLAT_at_worst_elevation:.2f} mLAT')
-    print(f'Max DEM = {worst_overall_DEM / 10**6:.2f} MNm at {actual_angles_worst_el[worst_overall_sector_idx]} deg / {compass_angles_worst_el[DEM_geo_i_all_angles.argmax()]:.0f} degN')
-
-    # NOTE Code below is not relevant for this script since we do not have utilization data for the members we have time series data for  
-    curve = SN_Curve_qats('D-air')
-
-    # Calculate damage, and lifetime (hard to compare right now since the % utilization for existing geometries is not available)
-    equivalent_stress = worst_overall_DEM * geo_matrix[worst_elevation_idx]['D'] / (2 * geo_matrix[worst_elevation_idx]['I'])
-    
-    equivalent_stress /= 10**6 # scale to MPa for use with SN-curves or others
-    dmg = curve.miner_sum(np.array([[equivalent_stress, N_equivalent]])) * DFF
-    print(f'In-place damage for S_eq {equivalent_stress:.2f} MPa, D = sum_i^k (n_i / N_i) = N_eq / N_[S_eq] \t{dmg * 100.0:.2f} %')
-    
-    # Explicit method
-    # dmg = N_equivalent * equivalent_stress**curve.SN.m2 / curve.SN.a2 * DFF
-    # print(f'In-place damage, D = N_eq*S^m/a2 \t{dmg * 100.0:.2f} %')
-    
-    # print(f'Expected lifetime T_lifetime / D\t{1 / dmg * T_lifetime:.2f} years') # Damage has here during "equivalent"-methods been calculated on a 25-year basis. Therefore it must be multiplied to be absolute damage
-
-    logger.info(f'Total DEM calculation script finished')
-    '''
-    
-    '''
-    Some notes
-    
-    log N = log a - m log S
-        
-    From relevant paper ->
-    Wohler's equation for material failure; 
-        - N_f * S^m = K
-    Expressed in the famous SN-curve fashion
-        - log S = (log K - log N)/m = (log K) / m - (log N) / m
-    
-    For N * S^m = a, we have that S < S_k @ N = N_f => a < K, and so the material is below the failure zone. 
-    Hence the total damage can be expressed as the fraction
-    
-    D = N * S^m / K
-    
-    The Miner sum simply extends this to the possibility of observing different stress ranges
-    over time such that for all individual observed stress ranges S_i, we have
-    
-    D = sum_i^k S_i^m / K
-    
-    This is called the Palmgren-Miner sum when assuming linear damage accumulation, expressing the damage in
-    
-    D = sum_i^k (n_i / N_i)
-    
-    Note that this damage is always expressed as a 
-    
-    Note that K in paper = a in the qats SN-curve implementaton
-    Selected a = a2 in qats which corresponds to the wohler exp m = 5.0 => loga2 = 15.606 => a2 = 10 ** loga2
-    qats curves stores a2 directly
-    '''
-    return None
-
 
 def calculate_total_DEM_sum_cluster_i(cluster, logger):
     DLC_IDs = ['DLC12', 'DLC24a',  'DLC31', 'DLC41a', 'DLC41b', 'DLC64a', 'DLC64b']
 
     sectors         = [float(i) for i in range(0,359,15)]
-    data_path       = fr'{os.getcwd()}\data'
-    mbr_geo_path    = data_path +  fr'\{cluster}_member_geos.xlsx'
-    member_geometry = pd.read_excel(mbr_geo_path) # .drop(geo_2_drop, axis=0)
+    data_path       = os.path.join(os.getcwd(), "data")
+    mbr_geo_path    = os.path.join(data_path, f"{cluster}_member_geos.xlsx")
+    member_geometry = pd.read_excel(mbr_geo_path)
     geo_matrix      = create_geo_matrix(member_geometry, sectors) # better matrix to pass to the main function
 
-    DEM_sum_paths_placeholder = fr'{os.getcwd()}\output\all_turbines\{cluster}\DB_{cluster}_' + r'{}_DEM.mat' 
-    out_path_xlsx = fr'\output\all_turbines\{cluster}\{cluster}_combined_DEM.xlsx'
+    out_path = os.path.join(os.getcwd(), "output", "all_turbines")
+    DEM_sum_paths_placeholder = os.path.join(out_path, cluster, f"DB_{cluster}_" + r'{}_DEM.mat')
+    out_path_xlsx = os.path.join(out_path, cluster, f"{cluster}_combined_DEM.xlsx")
     
     # Store the worst DEM results in a dict for tabular presentation later on
     logger.info(f'Calculating total DEM from {len(DLC_IDs)} DLCs')
@@ -140,7 +67,7 @@ def calculate_total_DEM_sum_cluster_i(cluster, logger):
                           index     = [f'{geo_matrix[key]["elevation"]:1f}' for key in geo_matrix.keys()], 
                           columns   = [f'{sector:.1f}' for sector in sectors[:]])
     
-    df_out.to_excel(fr'{os.getcwd()}' + out_path_xlsx, index_label = 'mLat')
+    df_out.to_excel(out_path_xlsx, index_label = 'mLat')
     logger.info(f'Stored the weighted DEM sums pr hr, all DLCs summed together, to {out_path_xlsx}')
 
     return None
