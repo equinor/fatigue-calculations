@@ -243,7 +243,7 @@ def preprocess_structure_reports(preprocess_reports, structure_file_paths, prepr
             preprosessed_structure_file_contents_paths = [os.path.join(path, name) for path, subdirs, files in os.walk(preprocessed_dir) for name in files if 'utils_and_geos_from_structure_report' in name]
             logger.info(f'Option to load previously preprocessed and stored structural reports chosen. Found {len(preprosessed_structure_file_contents_paths)} files and returned their paths')
         except:
-            logger.info('Error retrieving already preprocessed structural reports - EXITING')
+            logger.info('Error retrieving already preprocessed structural reports - please ensure that the script has been run at least once with preprocess_reports = True so the files exists. EXITING')
             sys.exit()
     
     # sort according to turbine name order when returning        
