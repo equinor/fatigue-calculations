@@ -22,10 +22,20 @@ Implementation of in-place damage and DEM calculation of the Dogger Bank wind tu
 '''
 def create_dir_if_not_existing(dir):
     if not os.path.exists(dir):
+        print(f'Did not find dir {dir}. Creating the dir.')
         os.makedirs(dir)
 
-def check_and_retrieve_output_dirs(cluster, current_working_directory = os.getcwd()):
-    
+def check_and_retrieve_output_dirs(cluster):
+    """Checks the output dir of the main scripts to see if they exist from previous runs.
+    If not, it creates all necessary dirs for running the main.py script.
+    It returns the base directory and the deepest directory of the output dir structure
+
+    Args:
+        cluster (str): DBA cluster name
+
+    Returns:
+        str, str: paths to base output dir and the markov cycle storage dir
+    """
     dirs = [os.path.join(os.getcwd(), "output"), 
             os.path.join(os.getcwd(), "output", "all_turbines"), 
             os.path.join(os.getcwd(), "output", "all_turbines", f"{cluster}"), 
@@ -33,9 +43,7 @@ def check_and_retrieve_output_dirs(cluster, current_working_directory = os.getcw
             ]
     
     for dir in dirs:
-        if not os.path.exists(dir):
-            print(f'Did not find dir {dir}. Creating the dir.')
-            os.makedirs(dir)
+        create_dir_if_not_existing(dir)
 
     return dirs[0], dirs[-1]
 
@@ -89,13 +97,15 @@ def calculate_all_DEM_sums(clusters = ['JLN', 'JLO', 'JLP'], multiprocess = True
 def calculate_10_min_damages(clusters = ['JLN', 'JLO', 'JLP'], multiprocess = True):
     """Calculates damages per 10 min instead of DEM.
     NOTE that this only works for elevations exactly where we have moment time series results!
+    This means that running this code for elevations other than the members / nodes does not make any sense.
+    For those elevations, the entire codebase must be run in order to use rainflow counting and DEM interpolation for estimating utiliation and damage calculation
 
     Args:
-        clusters (list, optional): _description_. Defaults to ['JLN', 'JLO', 'JLP'].
-        multiprocess (bool, optional): _description_. Defaults to True.
+        clusters (list, optional): list of clusters to computer over. Defaults to ['JLN', 'JLO', 'JLP'].
+        multiprocess (bool, optional): switch deciding to multiprocess over all cases. Defaults to True.
 
     Returns:
-        _type_: _description_
+        None: None
     """
     logger = setup_custom_logger('damage')
     logger.info(f'Initiating Dogger Bank damage calculations for clusters {clusters}')
@@ -193,4 +203,4 @@ def main_calculation_of_DEM_or_damage_cluster_i(cluster, logger, multiprocess = 
 
 if __name__ == '__main__':
     
-    _ = calculate_all_DEM_sums(multiprocess=True)
+    _ = calculate_all_DEM_sums(multiprocess = True)

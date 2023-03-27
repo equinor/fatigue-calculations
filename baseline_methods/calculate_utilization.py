@@ -19,6 +19,16 @@ When running this script, please be aware of the booleans deciding (1) to pre-pr
 '''
 
 def find_above_below_closest_elevations(df, member_elevations):
+    """Takes in a dataframe with information about points at a certain elevation on a turbine, along with information about the elevations of members / nodes from simulation
+    It calculates and returns the member that the different points are closest to wrt. elevation, both closest to above, closest to below, and the closest in absolute value
+
+    Args:
+        df (pd.DataFrame): Dataframe with information about elevations
+        member_elevations (np.ndarray): numpy array containing floats representing the elevations of the member nodes in mLAT
+
+    Returns:
+        3 x df: containing elevation of closest members above, closest members below, and the closest members per absolute value
+    """
     df['dist_to_members'] = df.apply(lambda row: member_elevations - row['elevation'], axis=1)
     df['idx_elevation_above'] = df.apply(lambda row: np.ma.MaskedArray(row['dist_to_members'], row['dist_to_members'] < 0.0).argmin(), axis=1)
     df['idx_elevation_below'] = df.apply(lambda row: np.ma.MaskedArray(row['dist_to_members'], row['dist_to_members'] >= 0.0).argmax(), axis=1)
@@ -26,7 +36,7 @@ def find_above_below_closest_elevations(df, member_elevations):
     return member_elevations[df['idx_elevation_above']],  member_elevations[df['idx_elevation_below']], member_elevations[df['idx_elevation_closest']]
 
 def return_worst_elevation(df):
-    # NOTE this selects only elevations based on in_place utilization
+    # This selects only elevations based on in_place utilization
     # This means that elevations with e.g. two SN-curves throughout their lifetime like those affected by corrosion will likely not be evaluated as "worst"
     # Here we compare towards the D_tot from the read_structural_report outputs in utils_and_geos_from_structure_report.xlsx
     
@@ -52,7 +62,7 @@ def return_worst_elevation(df):
     all_rule_utilizations = (df['rule_miner_sum_no_DFF'] * df['rule_DFF'] * 100).copy()
     df_res['rule_util_at_reported_elevation'] = all_rule_utilizations[report_worst_elevation_idx]
     
-    # find the elevation and utilization that the RULe method believes is the worst (should be the same)
+    # find the elevation and in place utilization that the RULe method believes is the worst (should be the same)
     rule_worst_elevation_idx = all_rule_utilizations.argmax()
     df_res['rule_worst_description'] = df.iloc[rule_worst_elevation_idx]['description']
     df_res['rule_worst_elevation'] = df.iloc[rule_worst_elevation_idx]['elevation']
@@ -275,6 +285,7 @@ def calculate_utilization_all_turbines( preprosessed_structure_file_contents_pat
              DFFs
             ) for i in range(len(preprosessed_structure_file_contents_paths))]
     
+    # Call the utilization calculation for all turbines, multiprocessed or singlethreaded
     if multiprocess_turbines:
         logger.info(f'Calculating utilization for all turbines multiprocessed')
         n_cpus_in_mp = int(os.cpu_count())
@@ -288,6 +299,7 @@ def calculate_utilization_all_turbines( preprosessed_structure_file_contents_pat
             logger.info(f'[{i+1}/{len(preprosessed_structure_file_contents_paths)}] Ended utilization script for turbine {os.path.normpath(filename).split(os.path.sep)[-2]}')
 
     return None 
+    
 
 if __name__ == '__main__':
     
@@ -308,7 +320,7 @@ if __name__ == '__main__':
     logger.info('Reading structural reports for geometric data and report utilization')
     
     # NOTE that the default report preprocessing is set to False. The first time this script is run, the parameter needs to be set to True
-    preprosessed_structure_file_contents_paths = preprocess_structure_reports(preprocess_reports   = False, 
+    preprosessed_structure_file_contents_paths = preprocess_structure_reports(preprocess_reports   = True, 
                                                                               structure_file_paths = structure_file_paths,
                                                                               preprocessed_dir     = result_output_dir, 
                                                                               logger               = logger)
