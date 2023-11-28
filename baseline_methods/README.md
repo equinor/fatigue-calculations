@@ -8,7 +8,7 @@ Note that it is needed to add the simulation force and moment time series result
 
 This method outputs data into output/ directory. If not already existing, it will create the dir for you.
 
-![Alt text](fatigue-calculation-workflow.png?raw=true "Main script workflow")
+![Alt text](rule-fatigue-calculation-workflow.drawio.png?raw=true "Main script workflow")
 
 ### Contact
 Creator of baseline_methods was Simen Sem Øvereng @simensov
